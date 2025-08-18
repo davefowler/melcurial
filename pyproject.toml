@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "melcurial"
+version = "0.1.0"
+description = "mel — a tiny helper for non-git folks"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Dave Fowler" }]
+keywords = ["git", "cli", "workflow", "developer-tools"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Environment :: Console",
+  "Topic :: Software Development :: Version Control",
+  "Operating System :: OS Independent",
+]
+
+[tool.setuptools]
+include-package-data = false
+platforms = ["any"]
+script-files = ["mel"]
+
+

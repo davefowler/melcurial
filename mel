@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-# mel — "melcurial" helper for non-git folks
+# mel — "melcurial" helper for non-engineers
 # Commands:
 #   mel start [name]
 #   mel save
-#   mel deploy
-#   mel freshstart
+#   mel publish
+#   mel reset
 #   mel status
-#   mel pull
+#   mel pull | mel update
 #   mel test
 #   mel help
+#   mel sync
+#   mel open [repo|branch|pr]
+#   mel diff
 
-import json, os, subprocess, sys, datetime, shlex, re
+import json, os, subprocess, sys, datetime, shlex, re, platform
 
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
@@ -105,6 +108,13 @@ def get_cfg(root):
     cfg = load_config(root)
     if "main" not in cfg:
         cfg["main"] = guess_main_name()
+    if "update_strategy" not in cfg:
+        cfg["update_strategy"] = "rebase"  # or "merge"
+    if "example_test_commands" not in cfg and "test_commands" not in cfg:
+        cfg["example_test_commands"] = [
+            "npm ci && npm test -s",
+            "pytest -q --disable-warnings"
+        ]
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -119,6 +129,46 @@ def sanitize_branch_name(raw_name):
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         name = f"mel-{ts}"
     return name
+
+def open_url(url):
+    system = platform.system().lower()
+    if system == "darwin":
+        run(["open", url], check=False)
+    elif system == "windows":
+        run(["cmd", "/c", "start", url], check=False)
+    else:
+        run(["xdg-open", url], check=False)
+
+def get_origin_web_url():
+    rc, url = run(["git", "remote", "get-url", "origin"], check=False)
+    u = url.strip()
+    if not u:
+        return None
+    m = re.match(r"git@([^:]+):([^/]+)/([^/]+)(\\.git)?$", u)
+    if m:
+        host, owner, repo = m.group(1), m.group(2), m.group(3)
+        return f"https://{host}/{owner}/{repo}"
+    m = re.match(r"https?://([^/]+)/([^/]+)/([^/]+)(\\.git)?/?$", u)
+    if m:
+        host, owner, repo = m.group(1), m.group(2), m.group(3)
+        return f"https://{host}/{owner}/{repo}"
+    return None
+
+def get_current_author():
+    rc, name = run(["git", "config", "user.name"], check=False)
+    return name.strip() or ""
+
+def format_merge_message(cfg, context, branch, main):
+    template = None
+    if context == "sync":
+        template = cfg.get("merge_message_after_sync") or cfg.get("merge_message")
+    else:
+        template = cfg.get("merge_message")
+    if not template:
+        return None
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    author = get_current_author()
+    return template.format(branch=branch, main=main, author=author, datetime=now)
 
 def cmd_start(branch_name):
     root = repo_root()
@@ -155,6 +205,10 @@ def cmd_save():
     print("✓ Save complete.")
 
 def cmd_deploy():
+    # Back-compat alias for publish
+    return cmd_publish()
+
+def cmd_publish():
     root = repo_root()
     cfg = get_cfg(root)
     main = cfg["main"]
@@ -163,23 +217,25 @@ def cmd_deploy():
     branch = user or cur
 
     if branch == main:
-        print(f"✖ You're on '{main}', deploy only works from a feature branch.")
+        print(f"✖ You're on '{main}', publish only works from a feature branch.")
         sys.exit(1)
 
-    print("\n— Pre-deploy test run —")
+    print("\n— Pre-publish test run —")
     rc = run_tests()
     if rc != 0:
-        print("✖ Tests failed. Aborting deploy.")
+        print("✖ Tests failed. Aborting publish.")
         sys.exit(rc)
 
-    print("⚠️  Are you sure you want to push everything live?!")
-    response = input("Type 'y' to confirm, anything else to abort: ")
-    if response.lower() != 'y':
-        print("Deploy cancelled.")
-        sys.exit(0)
+    yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
+    if not yes_mode:
+        print("⚠️  Are you sure you want to push everything live?!")
+        response = input("Type 'y' to confirm, anything else to abort: ")
+        if response.lower() != 'y':
+            print("Publish cancelled.")
+            sys.exit(0)
 
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    commit_all(f"mel deploy pre-commit @ {ts}")
+    commit_all(f"mel publish pre-commit @ {ts}")
 
     fetch_origin()
     run(["git", "checkout", main])
@@ -194,22 +250,28 @@ def cmd_deploy():
     rebase_onto(base_ref)
     push_current(set_upstream=False)
 
-    print("✓ Deploy complete.")
+    print("✓ Publish complete.")
 
 def cmd_freshstart():
+    # Back-compat alias; route to reset
+    return cmd_reset()
+
+def cmd_reset():
     root = repo_root()
     cfg = get_cfg(root)
     main = cfg["main"]
     branch = current_branch()
     if branch == main:
-        print("✖ Don’t run freshstart on main.")
+        print("✖ Don’t run reset on main.")
         sys.exit(1)
 
     fetch_origin()
     base_ref = f"origin/{main}" if has_remote("origin") else main
 
     print(f"!! This will ERASE all commits on {branch} and reset it to {base_ref}")
-    input("Press Enter to confirm, Ctrl+C to abort…")
+    yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
+    if not yes_mode:
+        input("Press Enter to confirm, Ctrl+C to abort…")
 
     run(["git", "reset", "--hard", base_ref])
     run(["git", "push", "--force", "origin", branch])
@@ -224,6 +286,10 @@ def cmd_status():
     rc, last_commit = run(["git", "log", "-1", "--pretty=%h %s (%cr)"], check=False)
     # ahead/behind (may fail if no upstream)
     ahead = behind = "?"
+    upstream = None
+    rc, upstream_out = run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], check=False)
+    if rc == 0:
+        upstream = upstream_out.strip()
     rc, ab = run(["git", "rev-list", "--left-right", "--count", "@{u}...HEAD"], check=False)
     try:
         left, right = ab.strip().split()
@@ -232,7 +298,7 @@ def cmd_status():
         pass
 
     print("— mel status —")
-    print(json.dumps({
+    status_obj = {
         "main": cfg.get("main"),
         "user_branch": cfg.get("user_branch"),
         "current_branch": cur,
@@ -240,7 +306,13 @@ def cmd_status():
         "behind": behind,
         "dirty_files": dirty_count,
         "last_commit": last_commit.strip(),
-    }, indent=2))
+    }
+    if not upstream:
+        status_obj["upstream"] = None
+        status_obj["set_upstream_hint"] = "git push -u origin HEAD"
+    else:
+        status_obj["upstream"] = upstream
+    print(json.dumps(status_obj, indent=2))
     print("— git status —")
     run(["git", "status", "-sb"])
 
@@ -250,25 +322,24 @@ def cmd_pull():
     main = cfg["main"]
     cur = current_branch()
     
-    # Check for uncommitted changes
+    # Check for uncommitted changes and offer save/stash
     rc, out = run(["git", "status", "--porcelain"], check=False)
+    stashed = False
     if out.strip():
         print("⚠️  You have uncommitted changes:")
         print(out)
         print("\nWhat would you like to do?")
-        print("1. Save changes (run 'mel save' first)")
-        print("2. Remove changes (stash and drop)")
+        print("1. Save changes (commit now)")
+        print("2. Stash and re-apply after update")
         print("3. Cancel pull")
-        
         response = input("Enter 1, 2, or 3: ")
-        
         if response == "1":
-            print("Running 'mel save' first...")
-            cmd_save()
+            ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            commit_all(f"mel save @ {ts}")
         elif response == "2":
-            print("Stashing and removing changes...")
-            run(["git", "stash", "push", "-m", "mel pull cleanup"])
-            run(["git", "stash", "drop"])
+            print("Stashing and will re-apply after update...")
+            run(["git", "stash", "push", "-m", "mel pull temp"])
+            stashed = True
         elif response == "3":
             print("Pull cancelled.")
             sys.exit(0)
@@ -286,9 +357,26 @@ def cmd_pull():
             run(["git", "pull", "--ff-only", "origin", main])
         print("✓ Updated main to latest.")
     else:
-        # On feature branch, merge latest main into current branch
-        print(f"📥 Merging latest {main} into current branch...")
-        merge_ff_only(base_ref)
+        # On feature branch, update with latest main via configured strategy
+        strategy = (cfg.get("update_strategy") or "rebase").lower()
+        print(f"📥 Updating current branch with latest {main} via {strategy}...")
+        if strategy == "merge":
+            msg = format_merge_message(cfg, "update", cur, main)
+            try:
+                if msg:
+                    run(["git", "merge", "--no-edit", "-m", msg, base_ref])
+                else:
+                    run(["git", "merge", base_ref])
+            except subprocess.CalledProcessError:
+                print("✖ Merge hit conflicts. Fix files → git add -A && git merge --continue, or git merge --abort.")
+                sys.exit(2)
+        else:
+            rebase_onto(base_ref)
+        if stashed:
+            print("Re-applying stashed changes...")
+            rc, _ = run(["git", "stash", "pop"], check=False)
+            if rc != 0:
+                print("⚠️  Conflicts may have occurred while applying stashed changes. Resolve and continue.")
         print("✓ Updated feature branch with latest main.")
 
 def run_tests():
@@ -345,24 +433,149 @@ def cmd_test():
     rc = run_tests()
     sys.exit(rc)
 
+def cmd_update():
+    cmd_pull()
+
+def cmd_diff():
+    print("— Diff (staged) —")
+    run(["git", "diff", "--staged", "--stat"], check=False)
+    print("\n— Diff (unstaged) —")
+    run(["git", "diff", "--stat"], check=False)
+
+def cmd_open(target=None):
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    base = get_origin_web_url()
+    if not base:
+        print("! Cannot determine origin URL.")
+        sys.exit(1)
+    cur = current_branch()
+    if not target or target == "repo":
+        url = base
+    elif target == "branch":
+        if "github.com" in base:
+            url = f"{base}/tree/{cur}"
+        else:
+            url = base
+    elif target == "pr":
+        if "github.com" in base:
+            url = f"{base}/compare/{main}...{cur}?expand=1"
+        else:
+            url = base
+    else:
+        print(f"Unknown open target: {target}")
+        sys.exit(1)
+    print(f"→ Opening {url}")
+    open_url(url)
+
+def ensure_clean_or_handle(non_interactive=False):
+    rc, out = run(["git", "status", "--porcelain"], check=False)
+    if not out.strip():
+        return "clean"
+    print("⚠️  You have uncommitted changes:")
+    print(out)
+    if non_interactive:
+        print("--yes provided. Defaulting to 'Save changes'.")
+        return "save"
+    print("\nWhat would you like to do?")
+    print("1. Save changes (commit now)")
+    print("2. Stash and re-apply after update")
+    print("3. Cancel")
+    response = input("Enter 1, 2, or 3: ")
+    if response == "1":
+        return "save"
+    elif response == "2":
+        return "stash"
+    elif response == "3":
+        print("Cancelled.")
+        sys.exit(0)
+    else:
+        print("Invalid choice. Cancelled.")
+        sys.exit(1)
+
+def cmd_sync(non_interactive=False):
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    cur = current_branch()
+
+    if cur == main:
+        print(f"✖ You’re on '{main}'. Run 'mel start [name]' first.")
+        sys.exit(1)
+
+    action = ensure_clean_or_handle(non_interactive=non_interactive)
+    stashed = False
+    if action == "save":
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        commit_all(f"mel save @ {ts}")
+    elif action == "stash":
+        print("Stashing changes for sync...")
+        run(["git", "stash", "push", "-m", "mel sync temp"])
+        stashed = True
+
+    fetch_origin()
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+
+    strategy = (cfg.get("update_strategy") or "rebase").lower()
+    print(f"🔄 Sync: updating {cur} with latest {main} via {strategy}...")
+    if strategy == "merge":
+        msg = format_merge_message(cfg, "sync", cur, main)
+        try:
+            if msg:
+                run(["git", "merge", "--no-edit", "-m", msg, base_ref])
+            else:
+                run(["git", "merge", base_ref])
+        except subprocess.CalledProcessError:
+            print("✖ Merge hit conflicts. Fix files → git add -A && git merge --continue, or git merge --abort.")
+            sys.exit(2)
+    else:
+        rebase_onto(base_ref)
+
+    if stashed:
+        print("Re-applying stashed changes...")
+        rc, _ = run(["git", "stash", "pop"], check=False)
+        if rc != 0:
+            print("⚠️  Conflicts may have occurred while applying stashed changes. Resolve, then 'git add -A' and continue.")
+
+    push_current(set_upstream=False)
+
+    base = get_origin_web_url()
+    if base and cfg.get("open_pr_on_sync"):
+        if "github.com" in base:
+            pr_url = f"{base}/compare/{main}...{cur}?expand=1"
+            print(f"→ Opening PR: {pr_url}")
+            open_url(pr_url)
+        else:
+            print("! open_pr_on_sync configured, but could not determine PR URL for this remote.")
+    print("✓ Sync complete.")
+
 def cmd_help():
     help_text = """
-mel — a tiny helper for non‑git folks
+mel — a tiny helper for non‑engineers
 
 Usage:
-  mel start [branch]   Create/reset a feature branch from main (prompts if omitted)
-  mel save             Commit all, rebase on latest main, push
-  mel deploy           Run tests, FF merge branch into main, push, rebase branch
-  mel freshstart       Hard reset current feature branch to main and force-push
+  mel start [name]     Create/reset a feature branch from main (prompts if omitted)
+  mel save             Commit all, update with main, push
+  mel sync             Save/stash as needed, update with main (rebase by default), push
+  mel publish          Run tests, FF merge branch into main, push, rebase branch
+  mel reset            Hard reset current feature branch to main and force-push
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
-  mel pull             Update main or FF merge latest main into current branch
+  mel update|pull      Update main or update current branch with latest main
+  mel diff             Show staged and unstaged diff stats
+  mel open [repo|branch|pr]  Open remote in browser
   mel test             Run configured test commands from .mel/config.json
   mel help             Show this help
 
 Config (.mel/config.json):
   {
     "main": "main",
-    "test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"]
+    "update_strategy": "rebase",  // or "merge"
+    "test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"],
+    "open_pr_on_sync": true,
+    "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
+    "merge_message_after_sync": "Merge {branch} into {main}",
+    "example_test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"]
   }
 """
     print(help_text.strip())
@@ -371,12 +584,14 @@ def main():
     if len(sys.argv) < 2:
         cmd_help()
         sys.exit(0)
-    cmd = sys.argv[1]
+    yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
+    args = [a for a in sys.argv[1:] if a != "--yes"]
+    cmd = args[0]
     if cmd in ("help", "-h", "--help"):
         cmd_help()
     elif cmd == "start":
-        if len(sys.argv) >= 3:
-            branch = sys.argv[2]
+        if len(args) >= 2:
+            branch = args[1]
         else:
             print("No branch provided.")
             entered = input("What's your name? We'll create a branch with it: ").strip()
@@ -389,14 +604,27 @@ def main():
         cmd_save()
     elif cmd == "deploy":
         cmd_deploy()
+    elif cmd == "publish":
+        cmd_publish()
     elif cmd == "freshstart":
         cmd_freshstart()
+    elif cmd == "reset":
+        cmd_reset()
     elif cmd == "status":
         cmd_status()
     elif cmd == "pull":
         cmd_pull()
+    elif cmd == "update":
+        cmd_update()
     elif cmd == "test":
         cmd_test()
+    elif cmd == "sync":
+        cmd_sync(non_interactive=yes_mode)
+    elif cmd == "open":
+        target = args[1] if len(args) >= 2 else None
+        cmd_open(target)
+    elif cmd == "diff":
+        cmd_diff()
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

@@ -43,9 +43,9 @@ chmod +x /usr/local/bin/mel</code></pre>
       <h2>Quick start</h2>
       <pre><code>mel start           # prompts for a name if omitted
 # edit files...
-mel save           # commit, rebase, push
-mel status         # see what's going on
-mel deploy         # run tests, fast-forward merge into main</code></pre>
+mel sync            # save/stash, update with main, push
+mel status          # see what's going on
+mel publish         # run tests, fast-forward merge into main</code></pre>
 
       <h2>Configure tests</h2>
       <p>Create <code>.mel/config.json</code> in your repo root and add commands to run before deploy or when invoking <code>mel test</code>:</p>
