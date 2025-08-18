@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+# mel — "melcurial" helper for non-git folks
+# Commands:
+#   mel start <branch>
+#   mel save
+#   mel deploy
+#   mel freshstart
+#   mel status
+#   mel pull
+#   mel test
+
+import json, os, subprocess, sys, datetime, shlex
+
+CONFIG_DIRNAME = ".mel"
+CONFIG_FILENAME = "config.json"
+
+def run(cmd, check=True):
+    if isinstance(cmd, str):
+        shell = True
+    else:
+        shell = False
+    print(f"→ {' '.join(cmd) if isinstance(cmd,list) else cmd}")
+    proc = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    out_lines = []
+    for line in proc.stdout:
+        print(line, end="")
+        out_lines.append(line)
+    rc = proc.wait()
+    if check and rc != 0:
+        raise subprocess.CalledProcessError(rc, cmd, "".join(out_lines))
+    return rc, "".join(out_lines)
+
+def repo_root():
+    rc, out = run(["git", "rev-parse", "--show-toplevel"])
+    return out.strip()
+
+def current_branch():
+    rc, out = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    return out.strip()
+
+def has_remote(remote="origin"):
+    rc, out = run(["git", "remote"], check=False)
+    return remote in out.split()
+
+def guess_main_name():
+    for candidate in ["main", "master"]:
+        rc, out = run(["git", "ls-remote", "--heads", "origin", candidate], check=False)
+        if out.strip():
+            return candidate
+    for candidate in ["main", "master"]:
+        rc, out = run(["git", "branch", "--list", candidate], check=False)
+        if out.strip():
+            return candidate
+    return "main"
+
+def load_config(root):
+    path = os.path.join(root, CONFIG_DIRNAME, CONFIG_FILENAME)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_config(root, cfg):
+    d = os.path.join(root, CONFIG_DIRNAME)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, CONFIG_FILENAME)
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print(f"✓ Saved mel config at {os.path.relpath(path, root)}")
+
+def fetch_origin():
+    if has_remote("origin"):
+        run(["git", "fetch", "origin"])
+    else:
+        print("! No 'origin' remote found. Skipping fetch.")
+
+def commit_all(default_msg):
+    run(["git", "add", "-A"])
+    rc, out = run(["git", "commit", "-m", default_msg], check=False)
+    if rc != 0:
+        print("… Nothing to commit.")
+
+def push_current(set_upstream=True):
+    args = ["git", "push"]
+    if set_upstream:
+        args += ["-u", "origin", "HEAD"]
+    run(args, check=True)
+
+def rebase_onto(ref):
+    try:
+        run(["git", "rebase", ref])
+    except subprocess.CalledProcessError:
+        print("✖ Rebase hit conflicts. Fix files → git add -A && git rebase --continue, or git rebase --abort.")
+        sys.exit(2)
+
+def merge_ff_only(ref):
+    try:
+        run(["git", "merge", "--ff-only", ref])
+    except subprocess.CalledProcessError:
+        print("✖ Fast-forward merge not possible. Run 'mel save' then try again.")
+        sys.exit(2)
+
+def get_cfg(root):
+    cfg = load_config(root)
+    if "main" not in cfg:
+        cfg["main"] = guess_main_name()
+    return cfg
+
+def cmd_start(branch_name):
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+
+    fetch_origin()
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+    run(["git", "checkout", "-B", branch_name, base_ref])
+    push_current(set_upstream=True)
+
+    cfg["user_branch"] = branch_name
+    save_config(root, cfg)
+    print(f"✓ Now on '{branch_name}' (based on {base_ref}).")
+
+def cmd_save():
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    cur = current_branch()
+
+    if cur == main:
+        print(f"✖ You’re on '{main}'. Run 'mel start <branch>' first.")
+        sys.exit(1)
+
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    commit_all(f"mel save @ {ts}")
+
+    fetch_origin()
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+    rebase_onto(base_ref)
+
+    push_current(set_upstream=False)
+    print("✓ Save complete.")
+
+def cmd_deploy():
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    user = cfg.get("user_branch")
+    cur = current_branch()
+    branch = user or cur
+
+    if branch == main:
+        print(f"✖ You're on '{main}', deploy only works from a feature branch.")
+        sys.exit(1)
+
+    print("\n— Pre-deploy test run —")
+    rc = run_tests()
+    if rc != 0:
+        print("✖ Tests failed. Aborting deploy.")
+        sys.exit(rc)
+
+    print("⚠️  Are you sure you want to push everything live?!")
+    response = input("Type 'y' to confirm, anything else to abort: ")
+    if response.lower() != 'y':
+        print("Deploy cancelled.")
+        sys.exit(0)
+
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    commit_all(f"mel deploy pre-commit @ {ts}")
+
+    fetch_origin()
+    run(["git", "checkout", main])
+    if has_remote("origin"):
+        run(["git", "pull", "--ff-only", "origin", main])
+
+    merge_ff_only(branch)
+    run(["git", "push", "origin", main])
+
+    run(["git", "checkout", branch])
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+    rebase_onto(base_ref)
+    push_current(set_upstream=False)
+
+    print("✓ Deploy complete.")
+
+def cmd_freshstart():
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    branch = current_branch()
+    if branch == main:
+        print("✖ Don’t run freshstart on main.")
+        sys.exit(1)
+
+    fetch_origin()
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+
+    print(f"!! This will ERASE all commits on {branch} and reset it to {base_ref}")
+    input("Press Enter to confirm, Ctrl+C to abort…")
+
+    run(["git", "reset", "--hard", base_ref])
+    run(["git", "push", "--force", "origin", branch])
+    print(f"✓ Branch {branch} reset to {base_ref} and force-pushed.")
+
+def cmd_status():
+    root = repo_root()
+    cfg = get_cfg(root)
+    print("— mel config —")
+    print(json.dumps(cfg, indent=2))
+    print("— git status —")
+    run(["git", "status"])
+
+def cmd_pull():
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    cur = current_branch()
+    
+    # Check for uncommitted changes
+    rc, out = run(["git", "status", "--porcelain"], check=False)
+    if out.strip():
+        print("⚠️  You have uncommitted changes:")
+        print(out)
+        print("\nWhat would you like to do?")
+        print("1. Save changes (run 'mel save' first)")
+        print("2. Remove changes (stash and drop)")
+        print("3. Cancel pull")
+        
+        response = input("Enter 1, 2, or 3: ")
+        
+        if response == "1":
+            print("Running 'mel save' first...")
+            cmd_save()
+        elif response == "2":
+            print("Stashing and removing changes...")
+            run(["git", "stash", "push", "-m", "mel pull cleanup"])
+            run(["git", "stash", "drop"])
+        elif response == "3":
+            print("Pull cancelled.")
+            sys.exit(0)
+        else:
+            print("Invalid choice. Pull cancelled.")
+            sys.exit(1)
+    
+    # Now pull the latest changes from main
+    fetch_origin()
+    base_ref = f"origin/{main}" if has_remote("origin") else main
+    
+    if cur == main:
+        # On main branch, just pull
+        if has_remote("origin"):
+            run(["git", "pull", "--ff-only", "origin", main])
+        print("✓ Updated main to latest.")
+    else:
+        # On feature branch, merge latest main into current branch
+        print(f"📥 Merging latest {main} into current branch...")
+        merge_ff_only(base_ref)
+        print("✓ Updated feature branch with latest main.")
+
+def run_tests():
+    root = repo_root()
+    backend_dir = os.path.join(root, "backend")
+    frontend_dir = os.path.join(root, "backend", "frontend")
+
+    print("\n— Running backend tests —")
+    pytest_path = os.path.join(backend_dir, "venv", "bin", "pytest")
+    if not os.path.exists(pytest_path):
+        print("! Backend venv not found. Run ./install.sh first.")
+        backend_rc = 1
+    else:
+        backend_rc, _ = run([pytest_path, "-q", "--disable-warnings"], check=False)
+
+    print("\n— Running frontend tests —")
+    npm_cmd = f"cd {shlex.quote(frontend_dir)} && npm run test -s"
+    frontend_rc, _ = run(npm_cmd, check=False)
+
+    print("\n— Test Summary —")
+    if backend_rc == 0:
+        print("✓ Backend: PASSED")
+    else:
+        print("✖ Backend: FAILED")
+    if frontend_rc == 0:
+        print("✓ Frontend: PASSED")
+    else:
+        print("✖ Frontend: FAILED")
+
+    overall_rc = 0 if (backend_rc == 0 and frontend_rc == 0) else 1
+    return overall_rc
+
+def cmd_test():
+    rc = run_tests()
+    sys.exit(rc)
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: mel [start|save|deploy|freshstart|status|pull|test]")
+        sys.exit(1)
+    cmd = sys.argv[1]
+    if cmd == "start":
+        if len(sys.argv) < 3:
+            print("Usage: mel start <branch>")
+            sys.exit(1)
+        cmd_start(sys.argv[2])
+    elif cmd == "save":
+        cmd_save()
+    elif cmd == "deploy":
+        cmd_deploy()
+    elif cmd == "freshstart":
+        cmd_freshstart()
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "pull":
+        cmd_pull()
+    elif cmd == "test":
+        cmd_test()
+    else:
+        print(f"Unknown command: {cmd}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
