@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # mel — "melcurial" helper for non-git folks
 # Commands:
-#   mel start <branch>
+#   mel start [name]
 #   mel save
 #   mel deploy
 #   mel freshstart
 #   mel status
 #   mel pull
 #   mel test
+#   mel help
 
-import json, os, subprocess, sys, datetime, shlex
+import json, os, subprocess, sys, datetime, shlex, re
 
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
@@ -105,6 +106,19 @@ def get_cfg(root):
     if "main" not in cfg:
         cfg["main"] = guess_main_name()
     return cfg
+
+def sanitize_branch_name(raw_name):
+    # Lowercase and replace spaces/invalid chars with '-'
+    name = raw_name.strip().lower()
+    name = re.sub(r"\s+", "-", name)
+    # Allow only safe chars for branch names
+    name = re.sub(r"[^a-z0-9._\-/]", "-", name)
+    # Collapse repeats and trim
+    name = re.sub(r"-+", "-", name).strip("-")
+    if not name or name.upper() == "HEAD":
+        ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        name = f"mel-{ts}"
+    return name
 
 def cmd_start(branch_name):
     root = repo_root()
@@ -204,10 +218,31 @@ def cmd_freshstart():
 def cmd_status():
     root = repo_root()
     cfg = get_cfg(root)
-    print("— mel config —")
-    print(json.dumps(cfg, indent=2))
+    cur = current_branch()
+    rc, porcelain = run(["git", "status", "--porcelain"], check=False)
+    dirty_count = len([l for l in porcelain.splitlines() if l.strip()])
+    rc, last_commit = run(["git", "log", "-1", "--pretty=%h %s (%cr)"], check=False)
+    # ahead/behind (may fail if no upstream)
+    ahead = behind = "?"
+    rc, ab = run(["git", "rev-list", "--left-right", "--count", "@{u}...HEAD"], check=False)
+    try:
+        left, right = ab.strip().split()
+        behind, ahead = left, right
+    except Exception:
+        pass
+
+    print("— mel status —")
+    print(json.dumps({
+        "main": cfg.get("main"),
+        "user_branch": cfg.get("user_branch"),
+        "current_branch": cur,
+        "ahead": ahead,
+        "behind": behind,
+        "dirty_files": dirty_count,
+        "last_commit": last_commit.strip(),
+    }, indent=2))
     print("— git status —")
-    run(["git", "status"])
+    run(["git", "status", "-sb"])
 
 def cmd_pull():
     root = repo_root()
@@ -258,48 +293,98 @@ def cmd_pull():
 
 def run_tests():
     root = repo_root()
+    cfg = get_cfg(root)
+    configured_cmds = cfg.get("test_commands")
+
+    if configured_cmds and isinstance(configured_cmds, list):
+        print("\n— Running configured tests —")
+        results = []
+        for cmd in configured_cmds:
+            print(f"\n$ {cmd}")
+            rc, _ = run(cmd, check=False)
+            results.append((cmd, rc))
+        print("\n— Test Summary —")
+        for cmd, rc in results:
+            print(("✓" if rc == 0 else "✖") + f" {cmd}")
+        return 0 if all(rc == 0 for _, rc in results) else 1
+
+    # Fallback legacy behavior for older projects
     backend_dir = os.path.join(root, "backend")
     frontend_dir = os.path.join(root, "backend", "frontend")
+    any_legacy = False
+    backend_rc = 0
+    frontend_rc = 0
 
-    print("\n— Running backend tests —")
-    pytest_path = os.path.join(backend_dir, "venv", "bin", "pytest")
-    if not os.path.exists(pytest_path):
-        print("! Backend venv not found. Run ./install.sh first.")
-        backend_rc = 1
-    else:
-        backend_rc, _ = run([pytest_path, "-q", "--disable-warnings"], check=False)
+    if os.path.isdir(backend_dir):
+        any_legacy = True
+        print("\n— Running backend tests —")
+        pytest_path = os.path.join(backend_dir, "venv", "bin", "pytest")
+        if not os.path.exists(pytest_path):
+            print("! Backend venv not found. Run ./install.sh first.")
+            backend_rc = 1
+        else:
+            backend_rc, _ = run([pytest_path, "-q", "--disable-warnings"], check=False)
 
-    print("\n— Running frontend tests —")
-    npm_cmd = f"cd {shlex.quote(frontend_dir)} && npm run test -s"
-    frontend_rc, _ = run(npm_cmd, check=False)
+    if os.path.isdir(frontend_dir):
+        any_legacy = True
+        print("\n— Running frontend tests —")
+        npm_cmd = f"cd {shlex.quote(frontend_dir)} && npm run test -s"
+        frontend_rc, _ = run(npm_cmd, check=False)
+
+    if not any_legacy:
+        print("! No test_commands configured and no legacy test setup detected. Skipping tests.")
+        return 0
 
     print("\n— Test Summary —")
-    if backend_rc == 0:
-        print("✓ Backend: PASSED")
-    else:
-        print("✖ Backend: FAILED")
-    if frontend_rc == 0:
-        print("✓ Frontend: PASSED")
-    else:
-        print("✖ Frontend: FAILED")
-
-    overall_rc = 0 if (backend_rc == 0 and frontend_rc == 0) else 1
-    return overall_rc
+    if any_legacy:
+        print(("✓" if backend_rc == 0 else "✖") + " Backend")
+        print(("✓" if frontend_rc == 0 else "✖") + " Frontend")
+    return 0 if (backend_rc == 0 and frontend_rc == 0) else 1
 
 def cmd_test():
     rc = run_tests()
     sys.exit(rc)
 
+def cmd_help():
+    help_text = """
+mel — a tiny helper for non‑git folks
+
+Usage:
+  mel start [branch]   Create/reset a feature branch from main (prompts if omitted)
+  mel save             Commit all, rebase on latest main, push
+  mel deploy           Run tests, FF merge branch into main, push, rebase branch
+  mel freshstart       Hard reset current feature branch to main and force-push
+  mel status           Show summary (ahead/behind, dirty files, last commit) and git status
+  mel pull             Update main or FF merge latest main into current branch
+  mel test             Run configured test commands from .mel/config.json
+  mel help             Show this help
+
+Config (.mel/config.json):
+  {
+    "main": "main",
+    "test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"]
+  }
+"""
+    print(help_text.strip())
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: mel [start|save|deploy|freshstart|status|pull|test]")
-        sys.exit(1)
+        cmd_help()
+        sys.exit(0)
     cmd = sys.argv[1]
-    if cmd == "start":
-        if len(sys.argv) < 3:
-            print("Usage: mel start <branch>")
-            sys.exit(1)
-        cmd_start(sys.argv[2])
+    if cmd in ("help", "-h", "--help"):
+        cmd_help()
+    elif cmd == "start":
+        if len(sys.argv) >= 3:
+            branch = sys.argv[2]
+        else:
+            print("No branch provided.")
+            entered = input("What's your name? We'll create a branch with it: ").strip()
+            if not entered:
+                print("✖ No name provided.")
+                sys.exit(1)
+            branch = entered
+        cmd_start(sanitize_branch_name(branch))
     elif cmd == "save":
         cmd_save()
     elif cmd == "deploy":
