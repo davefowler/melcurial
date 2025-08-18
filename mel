@@ -18,13 +18,16 @@ import json, os, subprocess, sys, datetime, shlex, re, platform
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
 
-def run(cmd, check=True):
+def run(cmd, check=True, cwd=None, env=None):
     if isinstance(cmd, str):
         shell = True
     else:
         shell = False
     print(f"→ {' '.join(cmd) if isinstance(cmd,list) else cmd}")
-    proc = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    merged_env = os.environ.copy()
+    if env:
+        merged_env.update({str(k): str(v) for k, v in env.items()})
+    proc = subprocess.Popen(cmd, shell=shell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=cwd, env=merged_env)
     out_lines = []
     for line in proc.stdout:
         print(line, end="")
@@ -115,6 +118,8 @@ def get_cfg(root):
             "npm ci && npm test -s",
             "pytest -q --disable-warnings"
         ]
+    if "scripts" not in cfg:
+        cfg["scripts"] = {}
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -170,6 +175,80 @@ def format_merge_message(cfg, context, branch, main):
     author = get_current_author()
     return template.format(branch=branch, main=main, author=author, datetime=now)
 
+def run_hooks(cfg, hook_key):
+    hooks = cfg.get(hook_key)
+    if not hooks:
+        return
+    if not isinstance(hooks, list):
+        print(f"! Ignoring invalid hook list for {hook_key}; expected list.")
+        return
+    for item in hooks:
+        if isinstance(item, str):
+            # Treat as a script name first, else raw command
+            if item in (cfg.get("scripts") or {}):
+                rc = run_script_by_name(cfg, item, extra_args=[])
+                if rc != 0:
+                    raise subprocess.CalledProcessError(rc, item)
+            else:
+                rc, _ = run(item, check=False)
+                if rc != 0:
+                    raise subprocess.CalledProcessError(rc, item)
+        elif isinstance(item, dict):
+            # Inline command object
+            cmd = item.get("cmd")
+            if not cmd:
+                continue
+            cwd = item.get("cwd")
+            env = item.get("env")
+            rc, _ = run(cmd, check=False, cwd=cwd, env=env)
+            if rc != 0:
+                raise subprocess.CalledProcessError(rc, cmd)
+        else:
+            print(f"! Unsupported hook entry type: {type(item)}")
+
+def detect_package_manager(root):
+    if os.path.exists(os.path.join(root, 'pnpm-lock.yaml')):
+        return 'pnpm'
+    if os.path.exists(os.path.join(root, 'yarn.lock')):
+        return 'yarn'
+    return 'npm'
+
+def run_script_by_name(cfg, name, extra_args):
+    root = repo_root()
+    scripts = cfg.get("scripts") or {}
+    entry = scripts.get(name)
+    if entry is None and cfg.get("allow_package_scripts"):
+        pm = detect_package_manager(root)
+        args = " ".join(shlex.quote(a) for a in extra_args) if extra_args else ""
+        cmd = f"{pm} run {shlex.quote(name)}" + (f" -- {args}" if args else "")
+        rc, _ = run(cmd, check=False)
+        return rc
+
+    if entry is None:
+        print(f"✖ Script '{name}' not found.")
+        return 1
+
+    if isinstance(entry, str):
+        cmd = entry
+        if extra_args:
+            cmd = cmd + " " + " ".join(shlex.quote(a) for a in extra_args)
+        rc, _ = run(cmd, check=False)
+        return rc
+    elif isinstance(entry, dict):
+        cmd = entry.get("cmd")
+        if not cmd:
+            print(f"✖ Script '{name}' is missing 'cmd'.")
+            return 1
+        if extra_args:
+            cmd = cmd + " " + " ".join(shlex.quote(a) for a in extra_args)
+        cwd = entry.get("cwd")
+        env = entry.get("env")
+        rc, _ = run(cmd, check=False, cwd=cwd, env=env)
+        return rc
+    else:
+        print(f"✖ Script '{name}' has an unsupported format.")
+        return 1
+
 def cmd_start(branch_name):
     root = repo_root()
     cfg = get_cfg(root)
@@ -195,6 +274,12 @@ def cmd_save():
         sys.exit(1)
 
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    # pre-save hooks
+    try:
+        run_hooks(cfg, "pre_save")
+    except subprocess.CalledProcessError:
+        print("✖ pre_save hook failed. Aborting.")
+        sys.exit(1)
     commit_all(f"mel save @ {ts}")
 
     fetch_origin()
@@ -202,6 +287,10 @@ def cmd_save():
     rebase_onto(base_ref)
 
     push_current(set_upstream=False)
+    try:
+        run_hooks(cfg, "post_save")
+    except subprocess.CalledProcessError:
+        print("✖ post_save hook failed.")
     print("✓ Save complete.")
 
 def cmd_deploy():
@@ -221,6 +310,11 @@ def cmd_publish():
         sys.exit(1)
 
     print("\n— Pre-publish test run —")
+    try:
+        run_hooks(cfg, "pre_publish")
+    except subprocess.CalledProcessError:
+        print("✖ pre_publish hook failed. Aborting.")
+        sys.exit(1)
     rc = run_tests()
     if rc != 0:
         print("✖ Tests failed. Aborting publish.")
@@ -250,6 +344,10 @@ def cmd_publish():
     rebase_onto(base_ref)
     push_current(set_upstream=False)
 
+    try:
+        run_hooks(cfg, "post_publish")
+    except subprocess.CalledProcessError:
+        print("✖ post_publish hook failed.")
     print("✓ Publish complete.")
 
 def cmd_freshstart():
@@ -565,6 +663,8 @@ Usage:
   mel diff             Show staged and unstaged diff stats
   mel open [repo|branch|pr]  Open remote in browser
   mel test             Run configured test commands from .mel/config.json
+  mel scripts          List configured scripts
+  mel run <name> [-- args...]  Run a configured script by name
   mel help             Show this help
 
 Config (.mel/config.json):
@@ -625,6 +725,32 @@ def main():
         cmd_open(target)
     elif cmd == "diff":
         cmd_diff()
+    elif cmd == "scripts":
+        cfg = get_cfg(repo_root())
+        scripts = cfg.get("scripts") or {}
+        if not scripts:
+            print("(no scripts configured)")
+        else:
+            for k, v in scripts.items():
+                if isinstance(v, str):
+                    print(f"{k}: {v}")
+                elif isinstance(v, dict):
+                    print(f"{k}: {v.get('cmd','')}")
+                else:
+                    print(f"{k}: (unsupported)")
+    elif cmd == "run":
+        if len(args) < 2:
+            print("Usage: mel run <name> [-- args...]")
+            sys.exit(1)
+        name = args[1]
+        # find `--` to split extra args
+        extra = []
+        if "--" in args:
+            idx = args.index("--")
+            extra = args[idx+1:]
+        cfg = get_cfg(repo_root())
+        rc = run_script_by_name(cfg, name, extra)
+        sys.exit(rc)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

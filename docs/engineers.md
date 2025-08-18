@@ -12,6 +12,8 @@ Supported fields:
 - `open_pr_on_sync`: boolean – if true, open an auto‑generated PR URL after `mel sync` (GitHub supported).
 - `merge_message`: string – merge commit message template. Supports `{branch}`, `{main}`, `{author}`, `{datetime}`.
 - `merge_message_after_sync`: string – optional template used for merges triggered by `sync`.
+- `scripts`: object – custom commands callable via `mel run <name>` (see below).
+- `allow_package_scripts`: boolean – if true, `mel run <name>` falls back to `<pm> run <name>` when not found in config (pm = npm/yarn/pnpm).
 
 Example:
 ```json
@@ -25,7 +27,13 @@ Example:
   "open_pr_on_sync": true,
   "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
   "merge_message_after_sync": "Merge {branch} into {main}",
-  "example_test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"]
+  "example_test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"],
+  "scripts": {
+    "build": "npm run build -s",
+    "publish-site": { "cmd": "npm run deploy", "cwd": "site", "env": { "NODE_ENV": "production" } },
+    "reindex": { "cmd": "python tools/reindex.py --all" }
+  },
+  "allow_package_scripts": false
 }
 ```
 
@@ -48,5 +56,15 @@ This affects commands like `publish`, `reset`, and `sync` (chooses Save when pro
 ### Extra commands for engineers
 - `mel diff` – Show staged/unstaged diff stats quickly.
 - `mel open [repo|branch|pr]` – Open remote repository pages in a browser.
+- `mel scripts` – List script names from `.mel/config.json`.
+- `mel run <name> [-- args...]` – Run a configured script. If `allow_package_scripts` is true and the script is not in config, mel will run `<pm> run <name>` (pm auto‑detects pnpm/yarn/npm).
+
+### Hooks (optional)
+You can run commands before/after core operations by adding hook arrays to config. Each entry can be a string (script name or raw shell) or an object `{ cmd, cwd?, env? }`.
+- `pre_save`, `post_save`
+- `pre_sync`, `post_sync`
+- `pre_publish`, `post_publish`
+
+If a hook command returns a non‑zero exit code, the main operation aborts.
 
 
