@@ -16,6 +16,7 @@ Supported fields:
 - `merge_message_after_sync`: string – optional template used for merges triggered by `sync`.
 - `scripts`: object – custom commands callable via `mel run <name>` and used by `mel test` when you define `scripts.test`.
 - `allow_package_scripts`: boolean – if true, `mel run <name>` falls back to `<pm> run <name>` when not found in config (pm = npm/yarn/pnpm). Also enables `mel test` to fall back to `<pm> run test`. Default: `true`.
+- `require_publish_confirmation`: boolean – if false, skip the confirmation prompt in `mel publish`. Default: `true`.
 
 Example:
 ```json
@@ -52,6 +53,8 @@ For automation/CI or scripts, mel supports a non‑interactive mode that answers
 - Flag: `--yes`
 
 This affects commands like `publish`, `reset`, and `sync` (chooses Save when prompted about uncommitted changes).
+
+You can also disable publish confirmation permanently by setting `"require_publish_confirmation": false` in your config.
 
 ### Extra commands for engineers
 - `mel diff` – Show staged/unstaged diff stats quickly.

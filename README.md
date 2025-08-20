@@ -64,7 +64,7 @@ mel publish                     # run tests, fast‑forward merge into main, pus
 - **open [repo|branch|pr]**: Open your remote in the browser.
 - **status**: Prints summary JSON including `main`, `user_branch`, `current_branch`, ahead/behind counts, dirty file count, last commit, then shows `git status -sb`.
 - **pull**: If on `main`, `git pull --ff-only`. If on a feature branch, fast‑forward merge latest main into the branch. If you have local changes, mel offers: save first, stash+drop, or cancel.
-- **test**: Runs the configured test commands. If none are configured, falls back to a legacy backend/frontend routine (if those paths exist). Otherwise skips tests.
+- **test**: Runs the configured `scripts.test` command. If not present, mel falls back to your package manager's `test` script when `allow_package_scripts` is true (default).
 
 ### Configuration (for engineers)
 mel stores configuration in `.mel/config.json` at your repo root. If it doesn’t exist, it’s created when you run mel.
@@ -72,12 +72,12 @@ mel stores configuration in `.mel/config.json` at your repo root. If it doesn’
 Fields:
 - `main` (string): Your default branch name. Auto‑detected between `main` or `master` if not set.
 - `user_branch` (string): The last branch created via `mel start`.
-- `test_commands` (array of strings): Shell commands to run for `mel test` and the pre‑publish step.
-- `example_test_commands` (array of strings): Shipped examples; ignored if `test_commands` is set.
+- `scripts` (object): Named commands. `test` under `scripts` is used by `mel test` and pre‑publish.
 - `update_strategy` (string): `rebase` (default) or `merge` for `pull/update/sync`.
 - `open_pr_on_sync` (boolean): If true, open a PR URL after `mel sync` (GitHub remotes supported).
 - `merge_message` (string): Template for merge commits. Supports `{branch}`, `{main}`, `{author}`, `{datetime}`.
 - `merge_message_after_sync` (string): Optional override template used for merges run by `sync`.
+- `require_publish_confirmation` (boolean): If false, skip the confirmation prompt in `mel publish` (default: true).
 
 Example `.mel/config.json`:
 ```json

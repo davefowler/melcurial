@@ -125,6 +125,8 @@ def get_cfg(root):
         cfg["scripts"] = {}
     if "allow_package_scripts" not in cfg:
         cfg["allow_package_scripts"] = True
+    if "require_publish_confirmation" not in cfg:
+        cfg["require_publish_confirmation"] = True
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -383,7 +385,7 @@ def cmd_publish():
         sys.exit(rc)
 
     yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
-    if not yes_mode:
+    if not yes_mode and cfg.get("require_publish_confirmation", True):
         print("⚠️  Are you sure you want to push everything live?!")
         response = input("Type 'y' to confirm, anything else to abort: ")
         if response.lower() != 'y':
@@ -696,7 +698,7 @@ Basic commands:
   mel start [name]     Create/reset a feature branch from main (prompts if omitted)
   mel save             Commit all, update with main, push
   mel sync             Save/stash as needed, update with main (rebase by default), push
-  mel publish          Run tests, FF merge branch into main, push, rebase branch
+  mel publish          Run tests, FF merge branch into main, push, rebase branch (--yes to skip confirm)
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
   mel update           Get the updates that others have deployed
   mel test             Run your project's test script
