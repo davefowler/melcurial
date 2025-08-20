@@ -740,7 +740,7 @@ Advanced commands:
   mel reset            Hard reset current feature branch to main and force-push
   mel run <name> [-- args...]  Run a configured script by name
   mel help             Show this help
-
+  
 Docs: https://davefowler.github.io/melcurial/
 """ + scripts_section
     print(help_text.strip())
