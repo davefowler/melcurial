@@ -1,8 +1,0 @@
-{
-  "main": "main",
-  "update_strategy": "rebase",
-  "scripts": {
-    "test": "pytest -q --disable-warnings"
-  }
-}
-
