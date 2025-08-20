@@ -17,6 +17,7 @@ Supported fields:
 - `scripts`: object – custom commands callable via `mel run <name>` and used by `mel test` when you define `scripts.test`.
 - `allow_package_scripts`: boolean – if true, `mel run <name>` falls back to `<pm> run <name>` when not found in config (pm = npm/yarn/pnpm). Also enables `mel test` to fall back to `<pm> run test`. Default: `true`.
 - `require_publish_confirmation`: boolean – if false, skip the confirmation prompt in `mel publish`. Default: `true`.
+- `require_add_confirmation`: boolean – if false, skip the confirmation prompt before adding files to commits. Default: `true`.
 
 Example:
 ```json
@@ -34,7 +35,8 @@ Example:
     "publish-site": { "cmd": "npm run deploy", "cwd": "site", "env": { "NODE_ENV": "production" } },
     "reindex": { "cmd": "python tools/reindex.py --all" }
   },
-  "allow_package_scripts": false
+  "allow_package_scripts": false,
+  "require_add_confirmation": true
 }
 ```
 
@@ -52,9 +54,9 @@ For automation/CI or scripts, mel supports a non‑interactive mode that answers
 - Env var: `MEL_YES=1`
 - Flag: `--yes`
 
-This affects commands like `publish`, `reset`, and `sync` (chooses Save when prompted about uncommitted changes).
+This affects commands like `publish`, `reset`, and `sync` (chooses Save when prompted about uncommitted changes), and skips file add confirmations.
 
-You can also disable publish confirmation permanently by setting `"require_publish_confirmation": false` in your config.
+You can also disable publish confirmation permanently by setting `"require_publish_confirmation": false` in your config, or disable add confirmation by setting `"require_add_confirmation": false`.
 
 ### Extra commands for engineers
 - `mel diff` – Show staged/unstaged diff stats quickly.

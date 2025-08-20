@@ -193,3 +193,61 @@ def test_open_runs_without_engineer_mode(tmp_path, monkeypatch):
     assert opened["url"] == "https://github.com/owner/repo"
 
 
+
+def test_start_creates_config_when_missing(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    # No template present, no config present
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+
+    # Use the temp path as repo root and avoid real git
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+
+    calls = []
+
+    def fake_run(cmd, check=True, cwd=None, env=None):  # type: ignore[unused-argument]
+        calls.append(cmd)
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+
+    # Run start, which should materialize a config.json via get_cfg/save_config
+    mel.cmd_start("feature/test-start-config")
+
+    cfg_path = mel_dir / "config.json"
+    assert cfg_path.exists()
+    cfg = (cfg_path).read_text()
+    # Should include at least defaults like main and update_strategy
+    assert '"main"' in cfg
+    assert '"update_strategy"' in cfg
+
+
+def test_start_uses_repo_template_if_available(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    # Provide a repo-local template
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config_template.json").write_text('{"scripts": {"test": "echo hi"}}')
+
+    # Prepare .gitignore to verify it stays valid, though not required
+    (tmp_path / ".gitignore").write_text("# ignore\n")
+
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+
+    def fake_run(cmd, check=True, cwd=None, env=None):  # type: ignore[unused-argument]
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+
+    mel.cmd_start("feature/with-template")
+
+    cfg_path = mel_dir / "config.json"
+    assert cfg_path.exists()
+    cfg_text = cfg_path.read_text()
+    assert '"scripts"' in cfg_text and '"test"' in cfg_text and '"echo hi"' in cfg_text

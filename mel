@@ -81,7 +81,36 @@ def fetch_origin():
     else:
         print("! No 'origin' remote found. Skipping fetch.")
 
-def commit_all(default_msg):
+def commit_all(default_msg, root=None):
+    # Check if we need to confirm before adding files
+    if root:
+        cfg = get_cfg(root)
+        if cfg.get("require_add_confirmation", True):
+            # Show what files will be added
+            rc, out = run(["git", "status", "--porcelain"], check=False)
+            if rc == 0 and out.strip():
+                print("\n📁 Files to be added:")
+                for line in out.strip().split('\n'):
+                    if line:
+                        status = line[:2]
+                        filename = line[3:]
+                        if status.startswith('??'):  # Untracked
+                            print(f"  + {filename} (new)")
+                        elif status.startswith(' M'):  # Modified
+                            print(f"  ~ {filename} (modified)")
+                        elif status.startswith(' D'):  # Deleted
+                            print(f"  - {filename} (deleted)")
+                        else:
+                            print(f"  ? {filename}")
+                
+                yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
+                if not yes_mode:
+                    print("\n⚠️  Add these files to the commit?")
+                    response = input("Type 'y' to continue, anything else to abort: ")
+                    if response.lower() != 'y':
+                        print("Commit cancelled.")
+                        sys.exit(0)
+    
     run(["git", "add", "-A"])
     rc, out = run(["git", "commit", "-m", default_msg], check=False)
     if rc != 0:
@@ -127,6 +156,8 @@ def get_cfg(root):
         cfg["allow_package_scripts"] = True
     if "require_publish_confirmation" not in cfg:
         cfg["require_publish_confirmation"] = True
+    if "require_add_confirmation" not in cfg:
+        cfg["require_add_confirmation"] = True
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -344,7 +375,7 @@ def cmd_save():
     except subprocess.CalledProcessError:
         print("✖ pre_save hook failed. Aborting.")
         sys.exit(1)
-    commit_all(f"mel save @ {ts}")
+    commit_all(f"mel save @ {ts}", root)
 
     fetch_origin()
     base_ref = f"origin/{main}" if has_remote("origin") else main
@@ -393,7 +424,7 @@ def cmd_publish():
             sys.exit(0)
 
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    commit_all(f"mel publish pre-commit @ {ts}")
+    commit_all(f"mel publish pre-commit @ {ts}", root)
 
     fetch_origin()
     run(["git", "checkout", main])
@@ -497,7 +528,7 @@ def cmd_pull():
         response = input("Enter 1, 2, or 3: ")
         if response == "1":
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            commit_all(f"mel save @ {ts}")
+            commit_all(f"mel save @ {ts}", root)
         elif response == "2":
             print("Stashing and will re-apply after update...")
             run(["git", "stash", "push", "-m", "mel pull temp"])
@@ -630,7 +661,7 @@ def cmd_sync(non_interactive=False):
     stashed = False
     if action == "save":
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        commit_all(f"mel save @ {ts}")
+        commit_all(f"mel save @ {ts}", root)
     elif action == "stash":
         print("Stashing changes for sync...")
         run(["git", "stash", "push", "-m", "mel sync temp"])

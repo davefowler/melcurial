@@ -12,6 +12,7 @@ mel publish        # runs checks and ships your changes to main
 
 Tips:
 - If mel asks what to do with local changes, choose Save or Stash.
+- If mel asks to confirm adding files, review the list and type 'y' to continue.
 - If mel offers to open a pull request, say yes and follow the link.
 - If something goes wrong, run `mel status` and share the output with an engineer.
 
