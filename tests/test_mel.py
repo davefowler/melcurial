@@ -176,3 +176,20 @@ def test_import_global_template_when_no_repo_template(tmp_path, monkeypatch):
     assert cfg.get("scripts", {}).get("test") == "pytest -q"
 
 
+def test_open_runs_without_engineer_mode(tmp_path, monkeypatch):
+    mel = load_mel_module()
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main"}')
+
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "current_branch", lambda: "feature/x")
+    monkeypatch.setattr(mel, "get_origin_web_url", lambda: "https://github.com/owner/repo")
+    # Avoid actually opening the browser
+    opened = {"url": None}
+    monkeypatch.setattr(mel, "open_url", lambda url: opened.update({"url": url}))
+
+    mel.cmd_open("repo")
+    assert opened["url"] == "https://github.com/owner/repo"
+
+

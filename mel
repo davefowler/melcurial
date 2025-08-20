@@ -7,7 +7,6 @@
 #   mel reset
 #   mel status
 #   mel pull | mel update
-#   mel test
 #   mel help
 #   mel sync
 #   mel open [repo|branch|pr]
@@ -207,6 +206,20 @@ def load_template_config(root):
         except Exception:
             continue
     return None
+
+def load_package_scripts(root):
+    pkg_path = os.path.join(root, "package.json")
+    if not os.path.exists(pkg_path):
+        return {}
+    try:
+        with open(pkg_path, "r", encoding="utf-8") as f:
+            pkg = json.load(f)
+        scripts = pkg.get("scripts") or {}
+        if not isinstance(scripts, dict):
+            return {}
+        return {k: v for k, v in scripts.items() if isinstance(v, str)}
+    except Exception:
+        return {}
 
 def get_current_author():
     rc, name = run(["git", "config", "user.name"], check=False)
@@ -658,35 +671,45 @@ def cmd_sync(non_interactive=False):
     print("✓ Sync complete.")
 
 def cmd_help():
+    root = repo_root()
+    cfg = get_cfg(root)
+    configured = cfg.get("scripts") or {}
+    package = load_package_scripts(root) if cfg.get("allow_package_scripts") else {}
+    
+    scripts_section = ""
+    if configured or package:
+        scripts_section = "\nScripts:\n"
+        if configured:
+            for k, v in configured.items():
+                if isinstance(v, str):
+                    scripts_section += f"  mel run {k}        {v}\n"
+                elif isinstance(v, dict):
+                    scripts_section += f"  mel run {k}        {v.get('cmd','')}\n"
+        if package:
+            for k, v in sorted(package.items()):
+                scripts_section += f"  mel run {k}        {v}\n"
+
     help_text = """
 mel — a tiny helper for non‑engineers
 
-Usage:
+Basic commands:
   mel start [name]     Create/reset a feature branch from main (prompts if omitted)
   mel save             Commit all, update with main, push
   mel sync             Save/stash as needed, update with main (rebase by default), push
   mel publish          Run tests, FF merge branch into main, push, rebase branch
-  mel reset            Hard reset current feature branch to main and force-push
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
-  mel update|pull      Update main or update current branch with latest main
+  mel update           Get the updates that others have deployed
+  mel test             Run your project's test script
+
+Advanced commands:
   mel diff             Show staged and unstaged diff stats
   mel open [repo|branch|pr]  Open remote in browser
-  mel test             Run the 'test' script from .mel/config.json (or package script)
-  mel scripts          List configured scripts
+  mel reset            Hard reset current feature branch to main and force-push
   mel run <name> [-- args...]  Run a configured script by name
   mel help             Show this help
 
-Config (.mel/config.json):
-  {
-    "main": "main",
-    "update_strategy": "rebase",  // or "merge"
-    "open_pr_on_sync": true,
-    "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
-    "merge_message_after_sync": "Merge {branch} into {main}",
-    "scripts": { "test": "pytest -q --disable-warnings" },
-    "allow_package_scripts": true
-  }
-"""
+Docs: https://davefowler.github.io/melcurial/
+""" + scripts_section
     print(help_text.strip())
 
 def main():
@@ -735,18 +758,30 @@ def main():
     elif cmd == "diff":
         cmd_diff()
     elif cmd == "scripts":
-        cfg = get_cfg(repo_root())
-        scripts = cfg.get("scripts") or {}
-        if not scripts:
-            print("(no scripts configured)")
-        else:
-            for k, v in scripts.items():
+        root = repo_root()
+        cfg = get_cfg(root)
+        configured = cfg.get("scripts") or {}
+        package = load_package_scripts(root) if cfg.get("allow_package_scripts") else {}
+        printed = False
+        if configured:
+            print("— Configured scripts (.mel/config.json) —")
+            for k, v in configured.items():
                 if isinstance(v, str):
                     print(f"{k}: {v}")
                 elif isinstance(v, dict):
                     print(f"{k}: {v.get('cmd','')}")
                 else:
                     print(f"{k}: (unsupported)")
+            printed = True
+        if package:
+            if printed:
+                print()
+            print("— Package scripts (package.json) —")
+            for k, v in sorted(package.items()):
+                print(f"{k}: {v}")
+            printed = True
+        if not printed:
+            print("(no scripts available)")
     elif cmd == "run":
         if len(args) < 2:
             print("Usage: mel run <name> [-- args...]")
