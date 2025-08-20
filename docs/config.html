@@ -20,6 +20,9 @@
       .muted { color: var(--muted); }
       ul { padding-left: 18px; }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script defer>document.addEventListener('DOMContentLoaded',function(){ if(window.hljs){ hljs.highlightAll(); } });</script>
   </head>
   <body>
     <header>
@@ -50,7 +53,7 @@
       </ul>
 
       <h2>Example</h2>
-      <pre><code>{
+      <pre><code class="language-json">{
   "main": "main",
   "update_strategy": "rebase",
   "open_pr_on_sync": true,
@@ -64,7 +67,7 @@
 }</code></pre>
 
       <h2>Non‑interactive mode</h2>
-      <p>For automation, set <code>MEL_YES=1</code> (or pass <code>--yes</code>) to answer “yes” to confirmations and choose safe defaults.</p>
+      <p>For automation, set <code class="language-bash">MEL_YES=1</code> (or pass <code>--yes</code>) to answer “yes” to confirmations and choose safe defaults.</p>
     </main>
   </body>
   </html>

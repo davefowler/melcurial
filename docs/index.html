@@ -29,6 +29,9 @@
       footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
       ul.checklist { margin: 8px 0 0; padding-left: 18px; }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script defer>document.addEventListener('DOMContentLoaded',function(){ if(window.hljs){ hljs.highlightAll(); } });</script>
   </head>
   <body>
     <header>
@@ -45,7 +48,7 @@
       <p class="muted">A tiny CLI that makes common Git workflows feel friendly.</p>
 
       <h2>Install</h2>
-      <pre><code>curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
+      <pre><code class="language-bash">curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
 chmod +x /usr/local/bin/mel</code></pre>
 
       <h2>Commands</h2>
@@ -56,7 +59,7 @@ chmod +x /usr/local/bin/mel</code></pre>
 
       <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
         <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
-        <pre><code>mel start           # creates your workspace branch (prompts for a name if omitted)
+        <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
 # edit files...
 mel sync            # saves/stashes your changes, updates with main, and pushes
 mel status          # shows what's going on
