@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Config — mel</title>
+    <style>
+      :root { --fg: #111; --muted: #555; --bg: #fff; }
+      html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+      header { border-bottom: 1px solid #eee; }
+      nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
+      nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
+      nav a.active, nav a:hover { color: var(--fg); background: #f4f4f4; }
+      h1 { font-size: 2rem; margin: 12px 0; }
+      h2 { font-size: 1.25rem; margin-top: 28px; }
+      pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; border-radius: 6px; }
+      code { padding: 2px 6px; }
+      pre { padding: 14px; overflow: auto; }
+      .muted { color: var(--muted); }
+      ul { padding-left: 18px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <nav>
+          <a href="./">Home</a>
+          <a class="active" href="./config.html">Config</a>
+          <a href="./about.html">About</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      <h1>Configuration</h1>
+      <p>mel reads <code>.mel/config.json</code> at the repository root. If it’s missing, mel will create the <code>.mel</code> folder as needed.</p>
+
+      <h2>Fields</h2>
+      <ul>
+        <li><code>main</code>: default branch name (auto‑detected as <code>main</code> or <code>master</code>).</li>
+        <li><code>user_branch</code>: last branch created via <code>mel start</code> (managed by mel).</li>
+        <li><code>update_strategy</code>: <code>"rebase" | "merge"</code> — strategy for <code>update</code> and <code>sync</code> (default: <code>rebase</code>).</li>
+        <li><code>open_pr_on_sync</code>: boolean — open a PR link after <code>mel sync</code> (GitHub supported).</li>
+        <li><code>merge_message</code>: string — merge commit message template. Supports <code>{branch}</code>, <code>{main}</code>, <code>{author}</code>, <code>{datetime}</code>.</li>
+        <li><code>merge_message_after_sync</code>: string — optional template used for merges triggered by <code>sync</code>.</li>
+        <li><code>scripts</code>: object — commands callable via <code>mel run &lt;name&gt;</code> and used by <code>mel test</code> when you define <code>scripts.test</code>.</li>
+        <li><code>allow_package_scripts</code>: boolean — if true, <code>mel run &lt;name&gt;</code> can fall back to package scripts, and <code>mel test</code> can run your package manager’s test.</li>
+        <li><code>require_publish_confirmation</code>: boolean — if false, skip the confirmation in <code>mel publish</code> (default: true).</li>
+        <li><code>require_add_confirmation</code>: boolean — if false, skip the confirmation before adding files to commits (default: true).</li>
+      </ul>
+
+      <h2>Example</h2>
+      <pre><code>{
+  "main": "main",
+  "update_strategy": "rebase",
+  "open_pr_on_sync": true,
+  "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
+  "scripts": {
+    "test": "pytest -q --disable-warnings",
+    "build": "npm run build -s"
+  },
+  "allow_package_scripts": true,
+  "require_add_confirmation": true
+}</code></pre>
+
+      <h2>Non‑interactive mode</h2>
+      <p>For automation, set <code>MEL_YES=1</code> (or pass <code>--yes</code>) to answer “yes” to confirmations and choose safe defaults.</p>
+    </main>
+  </body>
+  </html>
+
+

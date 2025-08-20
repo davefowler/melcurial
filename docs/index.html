@@ -3,85 +3,128 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>mel — tiny git helper</title>
+    <title>mel — friendly git helper</title>
     <style>
-      :root { --fg: #111; --muted: #555; --bg: #fff; --accent: #0b5; }
+      :root { --fg: #111; --muted: #555; --bg: #fff; --accent: #0b5; --accent-ink: #fff; }
       html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
-      .wrap { max-width: 760px; margin: 0 auto; padding: 40px 20px; }
-      h1 { font-size: 2rem; margin: 0 0 8px; }
-      h2 { font-size: 1.25rem; margin-top: 32px; }
-      p { margin: 12px 0; }
+      a { color: inherit; }
+      .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+      header { border-bottom: 1px solid #eee; }
+      nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
+      nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
+      nav a.active, nav a:hover { color: var(--fg); background: #f4f4f4; }
+      h1 { font-size: 2rem; margin: 12px 0; }
+      h2 { font-size: 1.25rem; margin-top: 28px; }
+      p { margin: 10px 0; }
       code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; border-radius: 6px; }
       code { padding: 2px 6px; }
       pre { padding: 14px; overflow: auto; }
       .muted { color: var(--muted); }
-      .pill { display: inline-block; background: #f0f0f0; padding: 3px 8px; border-radius: 999px; font-size: 12px; margin-right: 6px; }
-      .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: #fff; text-decoration: none; border-radius: 6px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+      .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
+      .tabbar { display: inline-flex; background: #f4f4f4; border-radius: 8px; padding: 4px; gap: 4px; margin: 12px 0 4px; }
+      .tabbar button { border: 0; background: transparent; padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); }
+      .tabbar button.active { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 1px #e5e5e5 inset; }
+      .section { display: none; }
+      .section.active { display: block; }
       footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
+      ul.checklist { margin: 8px 0 0; padding-left: 18px; }
     </style>
   </head>
   <body>
+    <header>
+      <div class="wrap">
+        <nav>
+          <a class="active" href="./">Home</a>
+          <a href="./config.html">Config</a>
+          <a href="./about.html">About</a>
+        </nav>
+      </div>
+    </header>
     <main class="wrap">
       <h1>mel</h1>
-      <p class="muted">A tiny CLI that makes a few Git workflows feel friendly.</p>
-
-      <div>
-        <span class="pill">start</span>
-        <span class="pill">save</span>
-        <span class="pill">deploy</span>
-        <span class="pill">freshstart</span>
-        <span class="pill">status</span>
-        <span class="pill">pull</span>
-        <span class="pill">test</span>
-      </div>
+      <p class="muted">A tiny CLI that makes common Git workflows feel friendly.</p>
 
       <h2>Install</h2>
-      <pre><code>curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/your/repo/main/mel
+      <pre><code>curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
 chmod +x /usr/local/bin/mel</code></pre>
 
-      <h2>Quick start</h2>
-      <pre><code>mel start           # prompts for a name if omitted
+      <div class="tabbar" role="tablist" aria-label="Audience">
+        <button id="tab-users" class="active" role="tab" aria-controls="panel-users" aria-selected="true">for non‑engineers</button>
+        <button id="tab-eng" role="tab" aria-controls="panel-eng" aria-selected="false">for engineers</button>
+      </div>
+
+      <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
+        <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
+        <pre><code>mel start           # creates your workspace (prompts for a name if omitted)
 # edit files...
-mel sync            # save/stash, update with main, push
-mel status          # see what's going on
-mel publish         # run tests, fast-forward merge into main</code></pre>
+mel sync            # saves/stashes your changes, updates with main, and pushes
+mel status          # shows what's going on
+mel publish         # runs checks and ships your changes to main</code></pre>
+        <p class="muted">Tips:</p>
+        <ul class="checklist">
+          <li>If mel asks what to do with local changes, choose Save or Stash.</li>
+          <li>If mel asks to confirm adding files, review the list and type <code>y</code> to continue.</li>
+          <li>If mel offers to open a pull request, say yes and follow the link.</li>
+        </ul>
+      </section>
 
-      <h2>Configure tests (two ways)</h2>
+      <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
+        <p>Everything above, plus a few extras:</p>
+        <div>
+          <span class="muted">Core:</span>
+          <span class="pill">start</span>
+          <span class="pill">save</span>
+          <span class="pill">sync</span>
+          <span class="pill">publish</span>
+          <span class="pill">status</span>
+          <span class="pill">update</span>
+          <span class="pill">test</span>
+        </div>
+        <div style="margin-top:6px;">
+          <span class="muted">Advanced:</span>
+          <span class="pill">diff</span>
+          <span class="pill">open</span>
+          <span class="pill">reset</span>
+          <span class="pill">run &lt;name&gt;</span>
+        </div>
+        <p>See <a href="./config.html">Config</a> for scripts, hooks, and update strategy.</p>
+      </section>
+
+      <h2>Tests</h2>
       <p><code>mel test</code> runs your project's tests using one of the following setups:</p>
-
       <h3>1) Define a <code>scripts.test</code> command</h3>
-      <p>Create <code>.mel/config.json</code> and add a <code>test</code> entry under <code>scripts</code>:</p>
       <pre><code>{
   "scripts": {
     "test": "pytest -q --disable-warnings"
   }
 }</code></pre>
       <pre><code>mel test</code></pre>
-
       <h3>2) Use your package manager's test (npm/yarn/pnpm)</h3>
-      <p>If your repo already has a package test (e.g. <code>npm run test</code>), mel will use it by default. You can also set it explicitly:</p>
       <pre><code>{
   "allow_package_scripts": true
 }</code></pre>
       <p>mel will run <code>npm run test</code>, <code>yarn test</code>, or <code>pnpm test</code> based on your lockfile.</p>
-      <pre><code>mel test</code></pre>
-
-      <p>Bonus: package fallback also lets you run other package scripts via <code>mel run</code>:</p>
-      <pre><code>mel run build
-mel run lint
-mel run typecheck</code></pre>
-
-      <h2>Docs</h2>
-      <p>See the <a href="../README.md">README</a> for full details.</p>
-
-      <a class="cta" href="../README.md">Read the README</a>
 
       <footer>
-        <p>Built for Mel. Use at your own risk.</p>
+        <p class="muted">Built for Mel. Use at your own risk.</p>
       </footer>
     </main>
+    <script>
+      const usersBtn = document.getElementById('tab-users');
+      const engBtn = document.getElementById('tab-eng');
+      const usersPanel = document.getElementById('panel-users');
+      const engPanel = document.getElementById('panel-eng');
+      function activate(which){
+        const isUsers = which === 'users';
+        usersBtn.classList.toggle('active', isUsers);
+        engBtn.classList.toggle('active', !isUsers);
+        usersBtn.setAttribute('aria-selected', String(isUsers));
+        engBtn.setAttribute('aria-selected', String(!isUsers));
+        usersPanel.classList.toggle('active', isUsers);
+        engPanel.classList.toggle('active', !isUsers);
+      }
+      usersBtn.addEventListener('click', () => activate('users'));
+      engBtn.addEventListener('click', () => activate('eng'));
+    </script>
   </body>
   </html>
-
-

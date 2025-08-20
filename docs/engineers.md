@@ -61,7 +61,7 @@ You can also disable publish confirmation permanently by setting `"require_publi
 ### Extra commands for engineers
 - `mel diff` – Show staged/unstaged diff stats quickly.
 - `mel open [repo|branch|pr]` – Open remote repository pages in a browser.
-- `mel scripts` – List script names from `.mel/config.json`.
+- `mel reset` – Hard reset current feature branch to main and force‑push.
 - `mel run <name> [-- args...]` – Run a configured script. If `allow_package_scripts` is true and the script is not in config, mel will run `<pm> run <name>` (pm auto‑detects pnpm/yarn/npm).
 
 ### Hooks (optional)
