@@ -48,6 +48,7 @@
       <pre><code>curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
 chmod +x /usr/local/bin/mel</code></pre>
 
+      <h2>Commands</h2>
       <div class="tabbar" role="tablist" aria-label="Audience">
         <button id="tab-users" class="active" role="tab" aria-controls="panel-users" aria-selected="true">for non‑engineers</button>
         <button id="tab-eng" role="tab" aria-controls="panel-eng" aria-selected="false">for engineers</button>
@@ -69,7 +70,7 @@ mel publish         # runs checks and ships your changes to main</code></pre>
       </section>
 
       <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
-        <p>Everything above, plus a few extras:</p>
+        <p>Everything above, plus more:</p>
         <div>
           <span class="muted">Core:</span>
           <span class="pill">start</span>
@@ -87,23 +88,11 @@ mel publish         # runs checks and ships your changes to main</code></pre>
           <span class="pill">reset</span>
           <span class="pill">run &lt;name&gt;</span>
         </div>
-        <p>See <a href="./config.html">Config</a> for scripts, hooks, and update strategy.</p>
+        <p class="muted">For scripts, hooks, and update strategy, see <a href="./config.html">Config</a>.</p>
       </section>
 
-      <h2>Tests</h2>
-      <p><code>mel test</code> runs your project's tests using one of the following setups:</p>
-      <h3>1) Define a <code>scripts.test</code> command</h3>
-      <pre><code>{
-  "scripts": {
-    "test": "pytest -q --disable-warnings"
-  }
-}</code></pre>
-      <pre><code>mel test</code></pre>
-      <h3>2) Use your package manager's test (npm/yarn/pnpm)</h3>
-      <pre><code>{
-  "allow_package_scripts": true
-}</code></pre>
-      <p>mel will run <code>npm run test</code>, <code>yarn test</code>, or <code>pnpm test</code> based on your lockfile.</p>
+      <h2>Team setup</h2>
+      <p>To tailor mel for your team (tests, scripts, update behavior), visit the <a href="./config.html">Configuration</a> page.</p>
 
       <footer>
         <p class="muted">Built for Mel. Use at your own risk.</p>
