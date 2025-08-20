@@ -47,14 +47,30 @@ mel sync            # save/stash, update with main, push
 mel status          # see what's going on
 mel publish         # run tests, fast-forward merge into main</code></pre>
 
-      <h2>Configure tests</h2>
-      <p>Create <code>.mel/config.json</code> in your repo root and add commands to run before deploy or when invoking <code>mel test</code>:</p>
+      <h2>Configure tests (two ways)</h2>
+      <p><code>mel test</code> runs your project's tests using one of the following setups:</p>
+
+      <h3>1) Define a <code>scripts.test</code> command</h3>
+      <p>Create <code>.mel/config.json</code> and add a <code>test</code> entry under <code>scripts</code>:</p>
       <pre><code>{
-  "test_commands": [
-    "npm ci && npm test -s",
-    "pytest -q --disable-warnings"
-  ]
+  "scripts": {
+    "test": "pytest -q --disable-warnings"
+  }
 }</code></pre>
+      <pre><code>mel test</code></pre>
+
+      <h3>2) Use your package manager's test (npm/yarn/pnpm)</h3>
+      <p>If your repo already has a package test (e.g. <code>npm run test</code>), mel will use it by default. You can also set it explicitly:</p>
+      <pre><code>{
+  "allow_package_scripts": true
+}</code></pre>
+      <p>mel will run <code>npm run test</code>, <code>yarn test</code>, or <code>pnpm test</code> based on your lockfile.</p>
+      <pre><code>mel test</code></pre>
+
+      <p>Bonus: package fallback also lets you run other package scripts via <code>mel run</code>:</p>
+      <pre><code>mel run build
+mel run lint
+mel run typecheck</code></pre>
 
       <h2>Docs</h2>
       <p>See the <a href="../README.md">README</a> for full details.</p>

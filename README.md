@@ -13,7 +13,7 @@ mel is a single‑file CLI that wraps a few safe Git workflows in friendly comma
 - **diff**: quick diff stats of staged/unstaged changes.
 - **status**: show mel config, current branch info, ahead/behind counts, dirty files, and last commit, plus `git status -sb`.
 - **pull**: update main or fast‑forward merge latest main into your current branch, with an interactive prompt to handle uncommitted changes.
-- **test hooks**: configure project‑specific test commands in `.mel/config.json`.
+- **test script**: configure a `test` script in `.mel/config.json` under `scripts`, or rely on package scripts (enabled by default).
 
 ### Installation
 
@@ -84,10 +84,10 @@ Example `.mel/config.json`:
 {
   "main": "main",
   "update_strategy": "rebase",
-  "test_commands": [
-    "npm ci && npm test -s",
-    "pytest -q --disable-warnings"
-  ],
+  "scripts": {
+    "test": "pytest -q --disable-warnings"
+  },
+  "allow_package_scripts": true,
   "open_pr_on_sync": true,
   "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
   "merge_message_after_sync": "Merge {branch} into {main}"
@@ -95,8 +95,7 @@ Example `.mel/config.json`:
 ```
 
 Notes:
-- Each entry in `test_commands` is executed as‑is. If any returns non‑zero, tests are considered failed.
-- If `test_commands` is missing and no legacy layout is found, tests are skipped.
+- `mel test` runs the `scripts.test` entry. If `test` is not in scripts, mel falls back to running your package manager's `test` script (package fallback is on by default).
 
 ### Safety and behavior
 - `start` creates or resets the target branch based on the latest `main` (local or `origin/main` if available) and sets upstream.

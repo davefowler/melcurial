@@ -49,10 +49,11 @@ def test_get_origin_web_url_parses_ssh_and_https(monkeypatch):
     assert mel.get_origin_web_url() is None
 
 
-def test_detect_package_manager(tmp_path):
+def test_detect_package_manager(tmp_path, monkeypatch):
     mel = load_mel_module()
 
     # Default when nothing present
+    monkeypatch.chdir(tmp_path)
     assert mel.detect_package_manager(tmp_path.as_posix()) == "npm"
 
     # yarn
@@ -64,14 +65,14 @@ def test_detect_package_manager(tmp_path):
     assert mel.detect_package_manager(tmp_path.as_posix()) == "pnpm"
 
 
-def test_run_tests_with_configured_cmds_all_pass(tmp_path, monkeypatch):
+def test_run_tests_with_scripts_test_all_pass(tmp_path, monkeypatch):
     mel = load_mel_module()
 
     # Prepare repo root with .mel/config.json
     mel_dir = tmp_path / ".mel"
     mel_dir.mkdir()
     (mel_dir / "config.json").write_text(
-        '{"main":"main","test_commands":["cmd_one","cmd_two"]}'
+        '{"main":"main","scripts":{"test":"cmd_test"}}'
     )
 
     monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
@@ -87,16 +88,16 @@ def test_run_tests_with_configured_cmds_all_pass(tmp_path, monkeypatch):
 
     rc = mel.run_tests()
     assert rc == 0
-    assert calls[:2] == ["cmd_one", "cmd_two"]
+    assert calls == ["cmd_test"]
 
 
-def test_run_tests_with_configured_cmds_one_fails(tmp_path, monkeypatch):
+def test_run_tests_with_scripts_test_fails(tmp_path, monkeypatch):
     mel = load_mel_module()
 
     mel_dir = tmp_path / ".mel"
     mel_dir.mkdir()
     (mel_dir / "config.json").write_text(
-        '{"main":"main","test_commands":["pass","fail"]}'
+        '{"main":"main","scripts":{"test":"fail"}}'
     )
 
     monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
@@ -125,5 +126,53 @@ def test_format_merge_message(monkeypatch):
     assert "feature/foo" in msg
     assert "main" in msg
     assert "Alice" in msg
+
+
+def test_ensure_mel_gitignored_appends_once(tmp_path):
+    mel = load_mel_module()
+    gi = tmp_path / ".gitignore"
+    gi.write_text("node_modules/\n# comment\n")
+    mel.ensure_mel_gitignored(tmp_path.as_posix())
+    content = gi.read_text()
+    assert ".mel/" in content
+    before = content
+    # Calling again should be idempotent
+    mel.ensure_mel_gitignored(tmp_path.as_posix())
+    assert gi.read_text() == before
+
+
+def test_import_repo_template_creates_config_and_gitignore(tmp_path, monkeypatch):
+    mel = load_mel_module()
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config_template.json").write_text('{"scripts": {"test": "echo hi"}}')
+
+    # Prepare .gitignore
+    (tmp_path / ".gitignore").write_text("# ignore\n")
+
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    assert cfg.get("scripts", {}).get("test") == "echo hi"
+    # Config file should be created from template
+    assert (mel_dir / "config.json").exists()
+    # .gitignore should be updated
+    assert ".mel/" in (tmp_path / ".gitignore").read_text()
+
+
+def test_import_global_template_when_no_repo_template(tmp_path, monkeypatch):
+    mel = load_mel_module()
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+
+    # Simulate a fake HOME with a template
+    fake_home = tmp_path / "fakehome"
+    (fake_home / ".mel").mkdir(parents=True)
+    (fake_home / ".mel" / "config_template.json").write_text('{"scripts": {"test": "pytest -q"}}')
+
+    original_expanduser = mel.os.path.expanduser
+    monkeypatch.setattr(mel.os.path, "expanduser", lambda p: str(fake_home) if p == "~" else original_expanduser(p))
+
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    assert cfg.get("scripts", {}).get("test") == "pytest -q"
 
 

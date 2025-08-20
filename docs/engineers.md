@@ -3,31 +3,31 @@
 ### Config file
 mel reads `.mel/config.json` at the repo root. If missing, mel will create the `.mel` folder as needed.
 
+Notes:
+- When mel writes the config (e.g., via `mel start`), it will ensure `.mel/` is listed in your repository `.gitignore` if that file exists. This keeps user‑specific state like `user_branch` local and avoids conflicts between collaborators.
+- You can still check in a template config if desired (e.g., in docs), but the per‑user `.mel/config.json` is generally meant to remain untracked.
+
 Supported fields:
 - `main`: string – default branch name. Auto‑detected as `main` or `master` if absent.
 - `user_branch`: string – last branch created via `mel start` (managed by mel).
-- `test_commands`: string[] – shell commands to run for `mel test` and pre‑publish checks.
-- `example_test_commands`: string[] – example commands shown by mel; ignored if `test_commands` is set.
 - `update_strategy`: `"rebase" | "merge"` – strategy for `pull`, `update`, and `sync` (default: `rebase`).
 - `open_pr_on_sync`: boolean – if true, open an auto‑generated PR URL after `mel sync` (GitHub supported).
 - `merge_message`: string – merge commit message template. Supports `{branch}`, `{main}`, `{author}`, `{datetime}`.
 - `merge_message_after_sync`: string – optional template used for merges triggered by `sync`.
-- `scripts`: object – custom commands callable via `mel run <name>` (see below).
-- `allow_package_scripts`: boolean – if true, `mel run <name>` falls back to `<pm> run <name>` when not found in config (pm = npm/yarn/pnpm).
+- `scripts`: object – custom commands callable via `mel run <name>` and used by `mel test` when you define `scripts.test`.
+- `allow_package_scripts`: boolean – if true, `mel run <name>` falls back to `<pm> run <name>` when not found in config (pm = npm/yarn/pnpm). Also enables `mel test` to fall back to `<pm> run test`. Default: `true`.
 
 Example:
 ```json
 {
   "main": "main",
   "update_strategy": "rebase",
-  "test_commands": [
-    "npm ci && npm test -s",
-    "pytest -q --disable-warnings"
-  ],
+  "scripts": {
+    "test": "pytest -q --disable-warnings"
+  },
   "open_pr_on_sync": true,
   "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
   "merge_message_after_sync": "Merge {branch} into {main}",
-  "example_test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"],
   "scripts": {
     "build": "npm run build -s",
     "publish-site": { "cmd": "npm run deploy", "cwd": "site", "env": { "NODE_ENV": "production" } },

@@ -74,6 +74,7 @@ def save_config(root, cfg):
     with open(path, "w") as f:
         json.dump(cfg, f, indent=2)
     print(f"✓ Saved mel config at {os.path.relpath(path, root)}")
+    ensure_mel_gitignored(root)
 
 def fetch_origin():
     if has_remote("origin"):
@@ -108,18 +109,23 @@ def merge_ff_only(ref):
         sys.exit(2)
 
 def get_cfg(root):
+    cfg_path = os.path.join(root, CONFIG_DIRNAME, CONFIG_FILENAME)
     cfg = load_config(root)
+    if not cfg and not os.path.exists(cfg_path):
+        # Attempt to import from template if provided
+        tpl = load_template_config(root)
+        if tpl:
+            cfg = tpl
+            save_config(root, cfg)
+            print("✓ Imported mel config from template")
     if "main" not in cfg:
         cfg["main"] = guess_main_name()
     if "update_strategy" not in cfg:
         cfg["update_strategy"] = "rebase"  # or "merge"
-    if "example_test_commands" not in cfg and "test_commands" not in cfg:
-        cfg["example_test_commands"] = [
-            "npm ci && npm test -s",
-            "pytest -q --disable-warnings"
-        ]
     if "scripts" not in cfg:
         cfg["scripts"] = {}
+    if "allow_package_scripts" not in cfg:
+        cfg["allow_package_scripts"] = True
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -152,11 +158,54 @@ def get_origin_web_url():
     m = re.match(r"git@([^:]+):([^/]+)/([^/]+)(\\.git)?$", u)
     if m:
         host, owner, repo = m.group(1), m.group(2), m.group(3)
+        if repo.endswith(".git"):
+            repo = repo[:-4]
         return f"https://{host}/{owner}/{repo}"
     m = re.match(r"https?://([^/]+)/([^/]+)/([^/]+)(\\.git)?/?$", u)
     if m:
         host, owner, repo = m.group(1), m.group(2), m.group(3)
+        if repo.endswith(".git"):
+            repo = repo[:-4]
         return f"https://{host}/{owner}/{repo}"
+    return None
+
+def ensure_mel_gitignored(root):
+    gi_path = os.path.join(root, ".gitignore")
+    if not os.path.exists(gi_path):
+        return
+    try:
+        with open(gi_path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except Exception:
+        return
+    normalized = [l.strip() for l in lines]
+    if ".mel" in normalized or ".mel/" in normalized:
+        return
+    # Append an entry to ignore the mel config directory
+    needs_newline = (len(lines) > 0 and not lines[-1].endswith("\n"))
+    to_append = ("\n" if needs_newline else "") + ".mel/\n"
+    with open(gi_path, "a", encoding="utf-8") as f:
+        f.write(to_append)
+    print("✓ Ensured .mel/ is ignored via .gitignore")
+
+def load_template_config(root):
+    # Repo-local templates
+    candidates = [
+        os.path.join(root, CONFIG_DIRNAME, "config_template.json"),
+        os.path.join(root, CONFIG_DIRNAME, "config.template.json"),
+    ]
+    # Global template
+    home = os.path.expanduser("~")
+    candidates.append(os.path.join(home, ".mel", "config_template.json"))
+    candidates.append(os.path.join(home, ".mel", "config.template.json"))
+
+    for p in candidates:
+        try:
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            continue
     return None
 
 def get_current_author():
@@ -480,52 +529,12 @@ def cmd_pull():
 def run_tests():
     root = repo_root()
     cfg = get_cfg(root)
-    configured_cmds = cfg.get("test_commands")
-
-    if configured_cmds and isinstance(configured_cmds, list):
-        print("\n— Running configured tests —")
-        results = []
-        for cmd in configured_cmds:
-            print(f"\n$ {cmd}")
-            rc, _ = run(cmd, check=False)
-            results.append((cmd, rc))
-        print("\n— Test Summary —")
-        for cmd, rc in results:
-            print(("✓" if rc == 0 else "✖") + f" {cmd}")
-        return 0 if all(rc == 0 for _, rc in results) else 1
-
-    # Fallback legacy behavior for older projects
-    backend_dir = os.path.join(root, "backend")
-    frontend_dir = os.path.join(root, "backend", "frontend")
-    any_legacy = False
-    backend_rc = 0
-    frontend_rc = 0
-
-    if os.path.isdir(backend_dir):
-        any_legacy = True
-        print("\n— Running backend tests —")
-        pytest_path = os.path.join(backend_dir, "venv", "bin", "pytest")
-        if not os.path.exists(pytest_path):
-            print("! Backend venv not found. Run ./install.sh first.")
-            backend_rc = 1
-        else:
-            backend_rc, _ = run([pytest_path, "-q", "--disable-warnings"], check=False)
-
-    if os.path.isdir(frontend_dir):
-        any_legacy = True
-        print("\n— Running frontend tests —")
-        npm_cmd = f"cd {shlex.quote(frontend_dir)} && npm run test -s"
-        frontend_rc, _ = run(npm_cmd, check=False)
-
-    if not any_legacy:
-        print("! No test_commands configured and no legacy test setup detected. Skipping tests.")
+    scripts = cfg.get("scripts") or {}
+    if "test" not in scripts and not cfg.get("allow_package_scripts"):
+        print("! No 'test' script configured. Skipping tests.")
         return 0
-
-    print("\n— Test Summary —")
-    if any_legacy:
-        print(("✓" if backend_rc == 0 else "✖") + " Backend")
-        print(("✓" if frontend_rc == 0 else "✖") + " Frontend")
-    return 0 if (backend_rc == 0 and frontend_rc == 0) else 1
+    rc = run_script_by_name(cfg, "test", extra_args=[])
+    return 0 if rc == 0 else 1
 
 def cmd_test():
     rc = run_tests()
@@ -662,7 +671,7 @@ Usage:
   mel update|pull      Update main or update current branch with latest main
   mel diff             Show staged and unstaged diff stats
   mel open [repo|branch|pr]  Open remote in browser
-  mel test             Run configured test commands from .mel/config.json
+  mel test             Run the 'test' script from .mel/config.json (or package script)
   mel scripts          List configured scripts
   mel run <name> [-- args...]  Run a configured script by name
   mel help             Show this help
@@ -671,11 +680,11 @@ Config (.mel/config.json):
   {
     "main": "main",
     "update_strategy": "rebase",  // or "merge"
-    "test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"],
     "open_pr_on_sync": true,
     "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
     "merge_message_after_sync": "Merge {branch} into {main}",
-    "example_test_commands": ["npm ci && npm test -s", "pytest -q --disable-warnings"]
+    "scripts": { "test": "pytest -q --disable-warnings" },
+    "allow_package_scripts": true
   }
 """
     print(help_text.strip())
