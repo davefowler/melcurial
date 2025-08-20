@@ -41,7 +41,7 @@ Example:
 ```
 
 ### Update behavior
-By default, mel rebases feature branches on top of the latest `main`. To switch to a merge workflow, set `update_strategy` to `"merge"`. When using merge, you can provide `merge_message` templates.
+By default, mel rebases your workspace branch on top of the latest `main`. To switch to a merge workflow, set `update_strategy` to `"merge"`. When using merge, you can provide `merge_message` templates.
 
 ### Uncommitted changes handling
 When updating, mel prompts to:
@@ -61,7 +61,7 @@ You can also disable publish confirmation permanently by setting `"require_publi
 ### Extra commands for engineers
 - `mel diff` – Show staged/unstaged diff stats quickly.
 - `mel open [repo|branch|pr]` – Open remote repository pages in a browser.
-- `mel reset` – Hard reset current feature branch to main and force‑push.
+- `mel reset` – Hard reset your workspace branch to main and force‑push.
 - `mel run <name> [-- args...]` – Run a configured script. If `allow_package_scripts` is true and the script is not in config, mel will run `<pm> run <name>` (pm auto‑detects pnpm/yarn/npm).
 
 ### Hooks (optional)

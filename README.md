@@ -3,10 +3,10 @@
 mel is a single‑file CLI that wraps a few safe Git workflows in friendly commands. It was originally built to help a marketing teammate (Mel!) manage a static site without learning Git internals.
 
 ### Highlights
-- **start**: create or reset a feature branch based on your main branch. If you don't pass a name, mel will prompt you and sanitize it into a safe branch name.
+- **start**: create or reset your personal workspace branch (defaults to your name). Mel sanitizes it into a safe branch name.
 - **save**: stage, commit, rebase on latest main, and push your branch.
 - **publish**: run tests, fast‑forward merge your branch into main, push, and rebase your branch back onto main.
-- **reset**: hard‑reset your current feature branch back to main's tip and force‑push.
+- **reset**: hard‑reset your workspace branch back to main's tip and force‑push.
 - **sync**: one‑shot “save/stash, update with main via rebase or merge, push”.
 - **update**: alias of `pull`; in docs for non‑engineers we recommend `update` over `pull`.
 - **open**: open the repo, current branch or PR in your remote.
@@ -54,16 +54,16 @@ mel publish                     # run tests, fast‑forward merge into main, pus
 ```
 
 ### Commands
-- **start [name]**: Create or reset `branch` (sanitized from `name`) from the latest main and push with upstream. If omitted, mel prompts for your name.
+- **start [name]**: Create or reset your workspace branch from the latest main and push with upstream. If omitted, mel prompts for your name.
 - **save**: Commit all changes with a timestamped message, fetch, rebase on main, and push.
 - **sync**: Save or stash as needed, update with latest main using the configured strategy (defaults to rebase), and push. Optionally opens a PR.
 - **publish**: Confirm, re‑run tests, update local main, fast‑forward merge your branch into main, push main, then rebase your branch on main and push again.
-- **reset**: For feature branches only. Hard‑reset to latest main and force‑push.
-- **update | pull**: Update main or update your feature branch with latest main using the configured strategy.
+- **reset**: For workspace branches only. Hard‑reset to latest main and force‑push.
+- **update | pull**: Update main or update your workspace branch with latest main using the configured strategy.
 - **diff**: Show staged/unstaged diff stats.
 - **open [repo|branch|pr]**: Open your remote in the browser.
 - **status**: Prints summary JSON including `main`, `user_branch`, `current_branch`, ahead/behind counts, dirty file count, last commit, then shows `git status -sb`.
-- **pull**: If on `main`, `git pull --ff-only`. If on a feature branch, fast‑forward merge latest main into the branch. If you have local changes, mel offers: save first, stash+drop, or cancel.
+- **pull**: If on `main`, `git pull --ff-only`. If on your workspace branch, fast‑forward merge latest main into the branch. If you have local changes, mel offers: save first, stash+drop, or cancel.
 - **test**: Runs the configured `scripts.test` command. If not present, mel falls back to your package manager's `test` script when `allow_package_scripts` is true (default).
 
 ### Configuration (for engineers)

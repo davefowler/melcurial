@@ -365,7 +365,7 @@ def cmd_save():
     cur = current_branch()
 
     if cur == main:
-        print(f"✖ You’re on '{main}'. Run 'mel start <branch>' first.")
+        print(f"✖ You’re on '{main}'. Run 'mel start' to create your workspace branch first.")
         sys.exit(1)
 
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -401,7 +401,7 @@ def cmd_publish():
     branch = user or cur
 
     if branch == main:
-        print(f"✖ You're on '{main}', publish only works from a feature branch.")
+        print(f"✖ You're on '{main}'. Publish only works from your workspace branch (not main).")
         sys.exit(1)
 
     print("\n— Pre-publish test run —")
@@ -654,7 +654,7 @@ def cmd_sync(non_interactive=False):
     cur = current_branch()
 
     if cur == main:
-        print(f"✖ You’re on '{main}'. Run 'mel start [name]' first.")
+        print(f"✖ You’re on '{main}'. Run 'mel start' first to create your workspace branch.")
         sys.exit(1)
 
     action = ensure_clean_or_handle(non_interactive=non_interactive)
@@ -723,13 +723,13 @@ def cmd_help():
                 scripts_section += f"  mel run {k}        {v}\n"
 
     help_text = """
-mel — a tiny helper for non‑engineers
+mel — a simpler git abstraction for non‑engineers
 
 Basic commands:
-  mel start [name]     Create/reset a feature branch from main (prompts if omitted)
+  mel start [name]     Create/reset your workspace branch (defaults to your name if omitted)
   mel save             Commit all, update with main, push
   mel sync             Save/stash as needed, update with main (rebase by default), push
-  mel publish          Run tests, FF merge branch into main, push, rebase branch (--yes to skip confirm)
+  mel publish          Run tests, fast‑forward merge your workspace branch into main, push, then rebase your branch (--yes to skip confirm)
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
   mel update           Get the updates that others have deployed
   mel test             Run your project's test script
@@ -737,7 +737,7 @@ Basic commands:
 Advanced commands:
   mel diff             Show staged and unstaged diff stats
   mel open [repo|branch|pr]  Open remote in browser
-  mel reset            Hard reset current feature branch to main and force-push
+  mel reset            Hard reset your workspace branch to main and force-push
   mel run <name> [-- args...]  Run a configured script by name
   mel help             Show this help
   

@@ -1,9 +1,9 @@
 ## mel – quick guide (for non‑engineers)
 
-Use these commands in your project folder:
+Use these commands in your project folder. Mel will create a personal workspace branch for you (usually your name) and reuse it next time.
 
 ```bash
-mel start          # creates your branch (prompts for your name)
+mel start          # creates your workspace branch (prompts for your name)
 # edit files...
 mel sync           # saves/stashes, updates with main, and pushes
 mel status         # shows what's going on
