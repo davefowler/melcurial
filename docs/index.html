@@ -21,9 +21,12 @@
       pre { padding: 14px; overflow: auto; }
       .muted { color: var(--muted); }
       .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
-      .tabbar { display: inline-flex; background: #f4f4f4; border-radius: 8px; padding: 4px; gap: 4px; margin: 12px 0 4px; }
-      .tabbar button { border: 0; background: transparent; padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); }
-      .tabbar button.active { background: var(--bg); color: var(--fg); box-shadow: 0 0 0 1px #e5e5e5 inset; }
+      .card { border: 1px solid #eaeaea; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); margin-top: 8px; }
+      .tabbar { display: flex; gap: 0; align-items: stretch; background: #f4f4f4; border-bottom: 1px solid #eaeaea; }
+      .tabbar button { flex: 1; border: 0; background: transparent; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--muted); }
+      .tabbar button:first-child { border-right: 1px solid #eaeaea; }
+      .tabbar button.active { background: #fff; color: var(--fg); }
+      .card-body { padding: 18px; }
       .section { display: none; }
       .section.active { display: block; }
       footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
@@ -52,47 +55,50 @@
 chmod +x /usr/local/bin/mel</code></pre>
 
       <h2>Commands</h2>
-      <div class="tabbar" role="tablist" aria-label="Audience">
-        <button id="tab-users" class="active" role="tab" aria-controls="panel-users" aria-selected="true">for non‑engineers</button>
-        <button id="tab-eng" role="tab" aria-controls="panel-eng" aria-selected="false">for engineers</button>
-      </div>
-
-      <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
-        <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
-        <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
+      <div class="card" role="region" aria-label="Commands">
+        <div class="tabbar" role="tablist" aria-label="Audience">
+          <button id="tab-users" class="active" role="tab" aria-controls="panel-users" aria-selected="true">for non‑engineers</button>
+          <button id="tab-eng" role="tab" aria-controls="panel-eng" aria-selected="false">for engineers</button>
+        </div>
+        <div class="card-body">
+          <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
+            <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
+            <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
 # edit files...
 mel sync            # saves/stashes your changes, updates with main, and pushes
 mel status          # shows what's going on
 mel publish         # runs checks and ships your changes to main</code></pre>
-        <p class="muted">Tips:</p>
-        <ul class="checklist">
-          <li>If mel asks what to do with local changes, choose Save or Stash.</li>
-          <li>If mel asks to confirm adding files, review the list and type <code>y</code> to continue.</li>
-          <li>If mel offers to open a pull request, say yes and follow the link.</li>
-        </ul>
-      </section>
+            <p class="muted">Tips:</p>
+            <ul class="checklist">
+              <li>If mel asks what to do with local changes, choose Save or Stash.</li>
+              <li>If mel asks to confirm adding files, review the list and type <code>y</code> to continue.</li>
+              <li>If mel offers to open a pull request, say yes and follow the link.</li>
+            </ul>
+          </section>
 
-      <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
-        <p>Everything above, plus more:</p>
-        <div>
-          <span class="muted">Core:</span>
-          <span class="pill">start</span>
-          <span class="pill">save</span>
-          <span class="pill">sync</span>
-          <span class="pill">publish</span>
-          <span class="pill">status</span>
-          <span class="pill">update</span>
-          <span class="pill">test</span>
+          <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
+            <p>Everything above, plus more:</p>
+            <div>
+              <span class="muted">Core:</span>
+              <span class="pill">start</span>
+              <span class="pill">save</span>
+              <span class="pill">sync</span>
+              <span class="pill">publish</span>
+              <span class="pill">status</span>
+              <span class="pill">update</span>
+              <span class="pill">test</span>
+            </div>
+            <div style="margin-top:6px;">
+              <span class="muted">Advanced:</span>
+              <span class="pill">diff</span>
+              <span class="pill">open</span>
+              <span class="pill">reset</span>
+              <span class="pill">run &lt;name&gt;</span>
+            </div>
+            <p class="muted">For scripts, hooks, and update strategy, see <a href="./config.html">Config</a>.</p>
+          </section>
         </div>
-        <div style="margin-top:6px;">
-          <span class="muted">Advanced:</span>
-          <span class="pill">diff</span>
-          <span class="pill">open</span>
-          <span class="pill">reset</span>
-          <span class="pill">run &lt;name&gt;</span>
-        </div>
-        <p class="muted">For scripts, hooks, and update strategy, see <a href="./config.html">Config</a>.</p>
-      </section>
+      </div>
 
       <h2>Team setup</h2>
       <p>To tailor mel for your team (tests, scripts, update behavior), visit the <a href="./config.html">Configuration</a> page.</p>
