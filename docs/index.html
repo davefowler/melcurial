@@ -77,25 +77,23 @@ mel publish         # runs checks and ships your changes to main</code></pre>
           </section>
 
           <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
-            <p>Everything above, plus more:</p>
-            <div>
-              <span class="muted">Core:</span>
-              <span class="pill">start</span>
-              <span class="pill">save</span>
-              <span class="pill">sync</span>
-              <span class="pill">publish</span>
-              <span class="pill">status</span>
-              <span class="pill">update</span>
-              <span class="pill">test</span>
-            </div>
-            <div style="margin-top:6px;">
-              <span class="muted">Advanced:</span>
-              <span class="pill">diff</span>
-              <span class="pill">open</span>
-              <span class="pill">reset</span>
-              <span class="pill">run &lt;name&gt;</span>
-            </div>
-            <p class="muted">For scripts, hooks, and update strategy, see <a href="./config.html">Config</a>.</p>
+            <p>Engineer‑oriented descriptions and full list:</p>
+            <pre><code class="language-bash">mel start [name]    # create/reset your workspace branch from latest main (defaults to your name)
+mel save            # commit-all with confirmation → rebase/merge onto main per config → push
+mel sync            # save/stash prompt → update branch with latest main (rebase by default) → push
+mel update          # same as sync (alias)
+mel status          # prints ahead/behind, dirty files, last commit, plus `git status`
+mel publish         # run tests/hooks → FF merge branch into main → push main → rebase branch → push</code></pre>
+
+            <p class="muted">Advanced:</p>
+            <pre><code class="language-bash">mel diff            # show staged and unstaged diff stats
+mel open repo       # open remote repo page
+mel open branch     # open current branch page
+mel open pr         # open compare PR URL (GitHub)
+mel reset           # hard reset your workspace branch to latest main and force‑push
+mel run &lt;name&gt;       # run configured script; supports `--` to pass extra args</code></pre>
+
+            <p class="muted">See <a href="./config.html">Config</a> for scripts, hooks, update strategy, and non‑interactive mode.</p>
           </section>
         </div>
       </div>
