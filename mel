@@ -724,12 +724,12 @@ def cmd_help():
         if configured:
             for k, v in configured.items():
                 if isinstance(v, str):
-                    scripts_section += f"  mel run {k}        {v}\n"
+                    scripts_section += f"  mel {k}        {v}\n"
                 elif isinstance(v, dict):
-                    scripts_section += f"  mel run {k}        {v.get('cmd','')}\n"
+                    scripts_section += f"  mel {k}        {v.get('cmd','')}\n"
         if package:
             for k, v in sorted(package.items()):
-                scripts_section += f"  mel run {k}        {v}\n"
+                scripts_section += f"  mel {k}        {v}\n"
 
     help_text = """
 mel — a simpler git abstraction for non‑engineers
@@ -747,7 +747,7 @@ Advanced commands:
   mel diff             Show staged and unstaged diff stats
   mel open [repo|branch|pr]  Open remote in browser
   mel reset            Hard reset your workspace branch to main and force-push
-  mel run <name> [-- args...]  Run a configured script by name
+  mel <name> [-- args...]      Run a configured script directly (or package script when allowed)
   mel help             Show this help
   
 Docs: https://davefowler.github.io/melcurial/
@@ -825,22 +825,24 @@ def main():
             printed = True
         if not printed:
             print("(no scripts available)")
-    elif cmd == "run":
-        if len(args) < 2:
-            print("Usage: mel run <name> [-- args...]")
-            sys.exit(1)
-        name = args[1]
-        # find `--` to split extra args
+    
+    else:
+        # Fallback: treat unknown command as a script name
+        try:
+            root = repo_root()
+            cfg = get_cfg(root)
+        except Exception:
+            cfg = {"scripts": {}, "allow_package_scripts": True}
+        name = cmd
+        # Collect extra args (support both "-- args" and direct args)
         extra = []
         if "--" in args:
             idx = args.index("--")
             extra = args[idx+1:]
-        cfg = get_cfg(repo_root())
+        else:
+            extra = args[1:]
         rc = run_script_by_name(cfg, name, extra)
         sys.exit(rc)
-    else:
-        print(f"Unknown command: {cmd}")
-        sys.exit(1)
 
 if __name__ == "__main__":
     main()
