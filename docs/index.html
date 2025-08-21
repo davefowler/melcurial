@@ -47,6 +47,7 @@
         <nav>
           <a class="active" href="./">Home</a>
           <a href="./config.html">Config</a>
+          <a href="./explained.html">Explained</a>
           <a href="./about.html">About</a>
         </nav>
       </div>
@@ -72,7 +73,7 @@ chmod +x /usr/local/bin/mel</code></pre>
           <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
             <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
             <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
-mel save            # saves your changes, updates with main, and pushes
+mel save "message"  # saves (optionally using your message), updates with main, and pushes
 mel status          # shows what's going on
 mel publish         # runs checks and ships your changes to main</code></pre>
             <p class="muted">Tips:</p>
@@ -86,7 +87,7 @@ mel publish         # runs checks and ships your changes to main</code></pre>
           <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
             <p>Engineer‑oriented descriptions and full list:</p>
             <pre><code class="language-bash">mel start [name]    # create/reset workspace branch from latest main
-mel save            # commit-all → rebase onto main → push
+mel save "message"  # commit-all (use message if provided) → rebase onto main → push
 mel update          # get latest changes from main
 mel status          # show ahead/behind, dirty files, last commit + git status
 mel publish         # run tests → FF merge to main → push → rebase branch</code></pre>

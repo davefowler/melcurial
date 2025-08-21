@@ -2,7 +2,7 @@
 # mel — "melcurial" helper for non-engineers
 # Commands:
 #   mel start [name]
-#   mel save
+#   mel save "message"
 #   mel publish
 #   mel reset
 #   mel status
@@ -366,7 +366,7 @@ def cmd_start(branch_name):
     save_config(root, cfg)
     print(f"✓ Now on '{branch_name}' (based on {base_ref}).")
 
-def cmd_save():
+def cmd_save(message=None):
     root = repo_root()
     cfg = get_cfg(root)
     main = cfg["main"]
@@ -383,7 +383,8 @@ def cmd_save():
     except subprocess.CalledProcessError:
         print("✖ pre_save hook failed. Aborting.")
         sys.exit(1)
-    commit_all(f"mel save @ {ts}", root)
+    commit_msg = message if (message and isinstance(message, str) and message.strip()) else f"mel save @ {ts}"
+    commit_all(commit_msg, root)
 
     fetch_origin()
     base_ref = f"origin/{main}" if has_remote("origin") else main
@@ -735,7 +736,7 @@ mel — a simpler git abstraction for non‑engineers
 
 Basic commands:
   mel start [name]     Create/reset your workspace branch (defaults to your name if omitted)
-  mel save             Commit all, update with main, push
+  mel save "message"   Commit all (use message if provided), update with main, push
   mel sync             Save/stash as needed, update with main (rebase by default), push
   mel publish          Run tests, fast‑forward merge your workspace branch into main, push, then rebase your branch (--yes to skip confirm)
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
@@ -774,7 +775,8 @@ def main():
             branch = entered
         cmd_start(sanitize_branch_name(branch))
     elif cmd == "save":
-        cmd_save()
+        msg = args[1] if len(args) >= 2 else None
+        cmd_save(msg)
     elif cmd == "deploy":
         cmd_deploy()
     elif cmd == "publish":

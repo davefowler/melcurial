@@ -7,7 +7,7 @@
     <style>
       :root { --fg: #111; --muted: #555; --bg: #fff; }
       html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
-      .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+      .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 60px; }
       header { border-bottom: 1px solid #eee; }
       nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
       nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
@@ -30,27 +30,79 @@
         <nav>
           <a href="./">Home</a>
           <a class="active" href="./config.html">Config</a>
+          <a href="./explained.html">Explained</a>
           <a href="./about.html">About</a>
         </nav>
       </div>
     </header>
     <main class="wrap">
       <h1>Configuration</h1>
-      <p>mel reads <code>.mel/config.json</code> at the repository root. If it’s missing, mel will create the <code>.mel</code> folder as needed.</p>
+      <p>mel reads <code>.mel/config.json</code> at the repository root. If it’s missing, mel will create the <code>.mel</code> folder as needed. You can also provide a template (see <a href="#template">Template</a>).</p>
 
-      <h2>Fields</h2>
+      <h2>Index</h2>
       <ul>
-        <li><code>main</code>: default branch name (auto‑detected as <code>main</code> or <code>master</code>).</li>
-        <li><code>user_branch</code>: last branch created via <code>mel start</code> (managed by mel).</li>
-        <li><code>update_strategy</code>: <code>"rebase" | "merge"</code> — strategy for <code>update</code> and <code>sync</code> (default: <code>rebase</code>).</li>
-        <li><code>open_pr_on_sync</code>: boolean — open a PR link after <code>mel sync</code> (GitHub supported).</li>
-        <li><code>merge_message</code>: string — merge commit message template. Supports <code>{branch}</code>, <code>{main}</code>, <code>{author}</code>, <code>{datetime}</code>.</li>
-        <li><code>merge_message_after_sync</code>: string — optional template used for merges triggered by <code>sync</code>.</li>
-        <li><code>scripts</code>: object — commands callable via <code>mel run &lt;name&gt;</code> and used by <code>mel test</code> when you define <code>scripts.test</code>.</li>
-        <li><code>allow_package_scripts</code>: boolean — if true, <code>mel run &lt;name&gt;</code> can fall back to package scripts, and <code>mel test</code> can run your package manager’s test.</li>
-        <li><code>require_publish_confirmation</code>: boolean — if false, skip the confirmation in <code>mel publish</code> (default: true).</li>
-        <li><code>require_add_confirmation</code>: boolean — if false, skip the confirmation before adding files to commits (default: true).</li>
+        <li><a href="#main">main</a></li>
+        <li><a href="#update_strategy">update_strategy</a></li>
+        <li><a href="#scripts">scripts</a> and <a href="#allow_package_scripts">allow_package_scripts</a></li>
+        <li><a href="#open_pr_on_sync">open_pr_on_sync</a>, <a href="#merge_message">merge_message</a>, <a href="#merge_message_after_sync">merge_message_after_sync</a></li>
+        <li><a href="#require_publish_confirmation">require_publish_confirmation</a>, <a href="#require_add_confirmation">require_add_confirmation</a></li>
+        <li><a href="#hooks">hooks</a></li>
+        <li><a href="#template">Template</a></li>
       </ul>
+
+      <h2 id="main">main</h2>
+      <p>Name of your default branch. Auto‑detected as <code>main</code> or <code>master</code> if absent.</p>
+
+      <h2 id="update_strategy">update_strategy</h2>
+      <p>How mel updates your workspace branch with the latest <code>main</code> during <code>save</code>/<code>sync</code>/<code>update</code>.</p>
+      <ul>
+        <li><code>"rebase"</code> (default): linear history, preferred for clean logs.</li>
+        <li><code>"merge"</code>: uses <code>git merge</code>; combine with <a href="#merge_message">merge_message</a> templates.</li>
+      </ul>
+      <pre><code class="language-json">{ "update_strategy": "rebase" }</code></pre>
+
+      <h2 id="scripts">scripts</h2>
+      <p>Custom commands callable via <code>mel run &lt;name&gt;</code>. Also used by <code>mel test</code> when you define <code>scripts.test</code>.</p>
+      <pre><code class="language-json">{
+  "scripts": {
+    "test": "pytest -q --disable-warnings",
+    "publish-site": { "cmd": "npm run deploy", "cwd": "site", "env": { "NODE_ENV": "production" } }
+  }
+}</code></pre>
+
+      <h2 id="allow_package_scripts">allow_package_scripts</h2>
+      <p>If true, <code>mel run &lt;name&gt;</code> falls back to your package manager when a script is not defined locally. Also allows <code>mel test</code> to run your package manager’s test script.</p>
+
+      <h2 id="open_pr_on_sync">open_pr_on_sync</h2>
+      <p>When true, after <code>mel sync</code> mel opens a prefilled PR URL (GitHub).</p>
+
+      <h2 id="merge_message">merge_message</h2>
+      <p>Template for merge commit messages when using <code>merge</code>. Supports <code>{branch}</code>, <code>{main}</code>, <code>{author}</code>, <code>{datetime}</code>. For merges triggered by <code>sync</code>, use <a href="#merge_message_after_sync">merge_message_after_sync</a>.</p>
+      <pre><code class="language-json">{ "merge_message": "Merge {branch} into {main} by {author} @ {datetime}" }</code></pre>
+
+      <h2 id="merge_message_after_sync">merge_message_after_sync</h2>
+      <p>Optional template used instead of <code>merge_message</code> when the merge happens during <code>sync</code>/<code>update</code>.</p>
+
+      <h2 id="require_publish_confirmation">require_publish_confirmation</h2>
+      <p>If false, skip the confirmation prompt in <code>mel publish</code>. Default: true.</p>
+
+      <h2 id="require_add_confirmation">require_add_confirmation</h2>
+      <p>If true (default), show a list of files and require confirmation before adding them to a commit.</p>
+
+      <h2 id="hooks">hooks</h2>
+      <p>Run commands before/after key operations. Each entry can be a string or an object <code>{ cmd, cwd?, env? }</code>.</p>
+      <ul>
+        <li><code>pre_save</code>, <code>post_save</code></li>
+        <li><code>pre_sync</code>, <code>post_sync</code></li>
+        <li><code>pre_publish</code>, <code>post_publish</code></li>
+      </ul>
+      <pre><code class="language-json">{
+  "pre_save": ["mel run test"],
+  "post_publish": [ { "cmd": "sh scripts/notify.sh", "env": { "CHANNEL": "#deploys" } } ]
+}</code></pre>
+
+      <h2 id="template">Template</h2>
+      <p>You can provide a template config at <code>.mel/config_template.json</code> (repo) or <code>~/.mel/config_template.json</code> (user). On first run, mel will import it to <code>.mel/config.json</code> if none exists.</p>
 
       <h2>Example</h2>
       <pre><code class="language-json">{

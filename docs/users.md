@@ -3,11 +3,17 @@
 Use these commands in your project folder. Mel will create a personal workspace branch for you (usually your name) and reuse it next time.
 
 ```bash
-mel start          # creates your workspace branch (prompts for your name)
+mel start            # creates your workspace branch (prompts for your name)
 # edit files...
-mel save           # saves your changes, updates with main, and pushes
-mel status         # shows what's going on
-mel publish        # runs checks and ships your changes to main
+mel save "message"   # saves (optionally using your message), updates with main, and pushes
+mel status           # shows what's going on
+mel publish          # runs checks and ships your changes to main
+```
+
+Example with a custom message:
+
+```bash
+mel save "Update homepage copy"
 ```
 
 Tips:

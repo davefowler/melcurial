@@ -59,7 +59,7 @@ mel publish                     # run tests, fast‑forward merge into main, pus
 
 ### Commands
 - **start [name]**: Create or reset your workspace branch from the latest main and push with upstream. If omitted, mel prompts for your name.
-- **save**: Commit all changes with a timestamped message, fetch, rebase on main, and push.
+- **save "message"**: Commit all changes (uses your message if provided; otherwise a timestamped default), fetch, rebase on main, and push.
 - **sync**: Save or stash as needed, update with latest main using the configured strategy (defaults to rebase), and push. Optionally opens a PR.
 - **publish**: Confirm, re‑run tests, update local main, fast‑forward merge your branch into main, push main, then rebase your branch on main and push again.
 - **reset**: For workspace branches only. Hard‑reset to latest main and force‑push.

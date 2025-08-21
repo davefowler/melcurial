@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Explained — how mel works</title>
+    <style>
+      :root { --fg: #111; --muted: #555; --bg: #fff; --accent: #0b5; }
+      html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
+      .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 60px; }
+      header { border-bottom: 1px solid #eee; }
+      nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
+      nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
+      nav a.active, nav a:hover { color: var(--fg); background: #f4f4f4; }
+      h1 { font-size: 2rem; margin: 12px 0 8px; }
+      h2 { font-size: 1.25rem; margin-top: 28px; }
+      h3 { margin-top: 22px; }
+      p { margin: 10px 0; }
+      pre, code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; border-radius: 6px; }
+      code { padding: 2px 6px; }
+      pre { padding: 14px; overflow: auto; }
+      .muted { color: var(--muted); }
+      ul { padding-left: 18px; }
+      .note { font-size: 14px; color: var(--muted); }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script defer>document.addEventListener('DOMContentLoaded',function(){ if(window.hljs){ hljs.highlightAll(); } });</script>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <nav>
+          <a href="./">Home</a>
+          <a href="./config.html">Config</a>
+          <a class="active" href="./explained.html">Explained</a>
+          <a href="./about.html">About</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      <h1>How mel works</h1>
+      <p>No good abstraction should be without a full explanation of what has been abstracted. If you're an engineer or AI trying to figure your way out of some confusing scenario, hopefully this information can help:</p>
+
+      <h2 id="start">start</h2>
+      <p>Creates or resets your personal workspace branch off the latest <code>main</code> and sets upstream. Name defaults to your name. See <a href="./config.html#main">main</a>.</p>
+      <pre><code class="language-bash"># Equivalent git
+git fetch origin                         # if origin exists
+git checkout -B &lt;your-branch&gt; origin/&lt;main&gt;  # or just &lt;main&gt; without origin
+git push -u origin HEAD</code></pre>
+
+      <h2 id="save">save</h2>
+      <p>Commits all changes, updates your branch with the latest <code>main</code>, then pushes. Confirmation before adding files can be controlled with <a href="./config.html#require_add_confirmation">require_add_confirmation</a>. Update behavior uses rebase by default (see <a href="./config.html#update_strategy">update_strategy</a>).</p>
+      <pre><code class="language-bash"># Equivalent git (default rebase)
+git add -A
+git commit -m "mel save @ &lt;timestamp&gt;"
+git fetch origin
+git rebase origin/&lt;main&gt;
+git push</code></pre>
+      <p class="note">If you set <code>update_strategy</code> to <code>merge</code>, mel will fast‑forward merge instead of rebase:</p>
+      <pre><code class="language-bash"># Alternative when update_strategy = "merge"
+git add -A && git commit -m "mel save @ &lt;ts&gt;"
+git fetch origin
+git merge --ff-only origin/&lt;main&gt;
+git push</code></pre>
+
+      <h2 id="update">update</h2>
+      <p>Alias for <code>sync</code>. If you have uncommitted changes, mel will prompt to save or stash first, then update your branch from latest <code>main</code> via <a href="./config.html#update_strategy">update_strategy</a>.</p>
+      <pre><code class="language-bash"># Rebase strategy (default)
+git fetch origin
+git rebase origin/&lt;main&gt;
+
+# Merge strategy
+git fetch origin
+git merge origin/&lt;main&gt;</code></pre>
+
+      <h2 id="publish">publish</h2>
+      <p>Runs tests, confirms, then fast‑forward merges your workspace branch into <code>main</code>, pushes <code>main</code>, rebases your branch back on top, pushes the branch, and runs hooks. Confirmation can be disabled via <a href="./config.html#require_publish_confirmation">require_publish_confirmation</a>. Test commands come from <a href="./config.html#scripts">scripts.test</a> or your package manager when <a href="./config.html#allow_package_scripts">allow_package_scripts</a> is true.</p>
+      <pre><code class="language-bash"># Equivalent git (happy path)
+# pre‑publish: run tests (project‑specific)
+git checkout &lt;main&gt;
+git pull --ff-only origin &lt;main&gt;
+git merge --ff-only &lt;your-branch&gt;
+git push origin &lt;main&gt;
+git checkout &lt;your-branch&gt;
+git rebase origin/&lt;main&gt;
+git push</code></pre>
+
+      <h2 id="status">status</h2>
+      <p>Shows ahead/behind versus <code>main</code>, dirty files, last commit summary, and then prints <code>git status</code>.</p>
+
+      <h2 id="reset">reset</h2>
+      <p>Hard resets your workspace branch back to <code>main</code> and force‑pushes. Guarded to prevent running on <code>main</code>.</p>
+      <pre><code class="language-bash">git fetch origin
+git reset --hard origin/&lt;main&gt;
+git push --force origin &lt;your-branch&gt;</code></pre>
+
+      <h2 id="open">open</h2>
+      <p>Opens remote URLs in your browser: repo, current branch, or a compare PR link (GitHub). Uses your <code>origin</code> URL.</p>
+
+      <h2 id="diff">diff</h2>
+      <p>Shows staged and unstaged diff stats.</p>
+
+      <h2 id="test">test</h2>
+      <p>Runs your project's test command from <a href="./config.html#scripts">scripts.test</a> or falls back to your package manager when <a href="./config.html#allow_package_scripts">allow_package_scripts</a> is true.</p>
+
+      <h2 id="hooks">hooks</h2>
+      <p>Optional arrays of commands that run before/after core operations. See <a href="./config.html#hooks">hooks</a>.</p>
+
+      <h2 id="noninteractive">non‑interactive mode</h2>
+      <p>Set <code>MEL_YES=1</code> or pass <code>--yes</code> to auto‑confirm prompts. Affects publishing confirmation and file‑add confirmation when <a href="./config.html#require_add_confirmation">require_add_confirmation</a> is enabled.</p>
+    </main>
+  </body>
+  </html>
+
+
