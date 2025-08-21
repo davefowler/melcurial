@@ -22,9 +22,10 @@
       .muted { color: var(--muted); }
       .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
       .code-wrapper { position: relative; }
-      .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all 0.2s; }
+      .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all 0.2s; opacity: 0; }
+      .code-wrapper:hover .copy-btn { opacity: 1; }
       .copy-btn:hover { background: #fff; color: var(--fg); border-color: #ccc; }
-      .copy-btn.copied { background: var(--accent); color: #fff; border-color: var(--accent); }
+      .copy-btn.copied { background: var(--accent); color: #fff; border-color: var(--accent); opacity: 1; }
       .card { border: 1px solid #eaeaea; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); margin-top: 8px; }
       .tabbar { display: flex; gap: 0; align-items: stretch; background: #f4f4f4; border-bottom: 1px solid #eaeaea; }
       .tabbar button { flex: 1; border: 0; background: transparent; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--muted); }
