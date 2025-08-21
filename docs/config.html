@@ -65,7 +65,7 @@
       <p>You can extend mel with custom commands callable via <code>mel &lt;name&gt;</code>.</p>
       <pre><code class="language-json">{
   "scripts": {
-    "lint": "ruff check .",
+    "test": "pytest -q --disable-warnings",
     "publish-site": { "cmd": "npm run deploy", "cwd": "site", "env": { "NODE_ENV": "production" } }
   }
 }</code></pre>
@@ -97,7 +97,7 @@
         <li><code>pre_publish</code>, <code>post_publish</code></li>
       </ul>
       <pre><code class="language-json">{
-  "pre_save": ["mel lint"],
+  "pre_save": ["mel test"],
   "post_publish": [ { "cmd": "sh scripts/notify.sh", "env": { "CHANNEL": "#deploys" } } ]
 }</code></pre>
 
@@ -108,7 +108,7 @@
 
       <p>In this example, we're setting the default branch to <code>main</code>, using <code>rebase</code> for updates, and opening a PR on sync. We're also defining a test script and a build script.</p>
       
-      <p>We're also defining two extra script commands that will allow users to run <code>mel lint</code> and <code>mel build</code>.</p>
+      <p>We're also defining two extra script commands that will allow users to run <code>mel test</code> and <code>mel build</code>.</p>
 
       <p>Package manager scripts are also enabled here, so users can run package scripts with: <code>mel &ltpackage-script-name&gt</code>. For example, <code>mel build</code> will run <code>npm run dev</code>.</p>
       

@@ -93,7 +93,7 @@ Example `.mel/config.json`:
   "main": "main",
   "update_strategy": "rebase",
   "scripts": {
-    "lint": "ruff check ."
+    "test": "pytest -q --disable-warnings"
   },
   "allow_package_scripts": true,
   "open_pr_on_sync": true,
