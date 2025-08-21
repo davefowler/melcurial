@@ -25,7 +25,15 @@ choose_target_dir() {
     return 0
   fi
 
-  # Prefer /usr/local/bin if writable
+  # On macOS with Homebrew, prefer /opt/homebrew/bin if writable (Apple Silicon default PATH)
+  if [[ "${OSTYPE:-}" == darwin* ]]; then
+    if [[ -d "/opt/homebrew/bin" && -w "/opt/homebrew/bin" ]]; then
+      echo "/opt/homebrew/bin"
+      return 0
+    fi
+  fi
+
+  # Otherwise prefer /usr/local/bin if writable
   if [[ -d "/usr/local/bin" && -w "/usr/local/bin" ]]; then
     echo "/usr/local/bin"
     return 0

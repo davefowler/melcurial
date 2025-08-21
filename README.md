@@ -27,9 +27,13 @@ curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.s
 ```
 
 Notes:
-- Installs `mel` to `/usr/local/bin` if writable; otherwise to `~/.local/bin`.
+- On macOS, prefers installing to `/opt/homebrew/bin` if writable; otherwise `/usr/local/bin`; if neither is writable, falls back to `~/.local/bin`.
 - If the chosen directory is not on your PATH, the script prints a snippet to add.
 - Requires `curl` and `python3`.
+ - To automatically add the install directory to your PATH, set `MEL_ADD_TO_PATH=1` when running the installer. Example:
+   - `curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | MEL_ADD_TO_PATH=1 bash`
+ - To install to a custom directory, pass it as the first argument to the installer. Example:
+   - `curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash -s -- "$HOME/bin"`
 
 Install with pipx (recommended for Python users):
 ```bash
@@ -117,6 +121,14 @@ Notes:
 - Dry‑run mode: `MEL_DRY_RUN=1` to print commands without executing.
 - Auto‑stash/restore option on `pull` instead of drop.
 - Protected branches list in config.
+
+### FAQ
+
+- **What's the story of melcurial?**
+  - See the About page: [About melcurial](docs/about.html).
+
+- **Does melcurial work with Mercurial?**
+  - Not yet, but it is planned. See the plan: [Mercurial (Hg) Support Plan](mercurial_plan.md).
 
 ### License
 Use at your own risk. Adapt freely.

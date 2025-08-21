@@ -21,7 +21,7 @@
       pre { padding: 14px; overflow: auto; }
       .muted { color: var(--muted); }
       .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
-      .code-wrapper { position: relative; }
+      .code-wrapper { position: relative; cursor: pointer; }
       .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all 0.2s; opacity: 0; }
       .code-wrapper:hover .copy-btn { opacity: 1; }
       .copy-btn:hover { background: #fff; color: var(--fg); border-color: #ccc; }
@@ -54,13 +54,17 @@
     </header>
     <main class="wrap">
       <h1>mel</h1>
-      <p class="muted">A tiny CLI that makes common Git workflows feel friendly.</p>
+      <p class="muted">Many non-engineers have contributions for codebases (static sites, docs, design tweaks, image swaps, etc.) and the learning curve on git is steep.  
+        
+        <code>mel</code> is a simplification of a common git flow that makes versioned collaboration more approachable for those non-engineer contributors.</p>
 
+        <p class="muted">Mission: enable non-engineers to contribute!</p>
+        
       <h2>Install</h2>
       <p class="muted">macOS/Linux (no sudo). Installs to <code>~/.local/bin</code>.</p>
       <div class="code-wrapper">
         <pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash</code></pre>
-        <button class="copy-btn" onclick="copyInstallCode(this)">Copy</button>
+        <button class="copy-btn" aria-label="Copy install command">Copy</button>
       </div>
 
       <h2>Commands</h2>
@@ -142,6 +146,20 @@ mel run &lt;name&gt;       # run configured script; supports `--` for extra args
           }, 2000);
         });
       }
+      (function(){
+        const wrapper = document.querySelector('.code-wrapper');
+        if (!wrapper) return;
+        const btn = wrapper.querySelector('.copy-btn');
+        wrapper.addEventListener('click', function(){
+          if (btn) copyInstallCode(btn);
+        });
+        if (btn) {
+          btn.addEventListener('click', function(e){
+            e.stopPropagation();
+            copyInstallCode(btn);
+          });
+        }
+      })();
     </script>
   </body>
   </html>
