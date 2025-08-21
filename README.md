@@ -15,7 +15,11 @@ mel is a single‑file CLI that wraps a few safe Git workflows in friendly comma
 - **pull**: update main or fast‑forward merge latest main into your current branch, with an interactive prompt to handle uncommitted changes.
 - **test script**: configure a `test` script in `.mel/config.json` under `scripts`, or rely on package scripts (enabled by default).
 
-### Installation
+### Development
+
+This project uses mel for version control. Use `mel start`, `mel sync`, `mel publish` etc. instead of raw git commands.
+
+## Installation
 
 Quick install (macOS/Linux):
 ```bash
