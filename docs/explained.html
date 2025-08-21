@@ -75,7 +75,7 @@ git fetch origin
 git merge origin/&lt;main&gt;</code></pre>
 
       <h2 id="publish">publish</h2>
-      <p>Runs tests, confirms, then fast‑forward merges your workspace branch into <code>main</code>, pushes <code>main</code>, rebases your branch back on top, pushes the branch, and runs hooks. Confirmation can be disabled via <a href="./config.html#require_publish_confirmation">require_publish_confirmation</a>. Test commands come from <a href="./config.html#scripts">scripts.test</a> or your package manager when <a href="./config.html#allow_package_scripts">allow_package_scripts</a> is true.</p>
+      <p>Confirms, then fast‑forward merges your workspace branch into <code>main</code>, pushes <code>main</code>, rebases your branch back on top, pushes the branch, and runs hooks. Confirmation can be disabled via <a href="./config.html#require_publish_confirmation">require_publish_confirmation</a>. Teams should run tests via scripts or <a href="./config.html#hooks">pre_publish</a> hooks.</p>
       <pre><code class="language-bash"># Equivalent git (happy path)
 # pre‑publish: run tests (project‑specific)
 git checkout &lt;main&gt;
@@ -101,8 +101,7 @@ git push --force origin &lt;your-branch&gt;</code></pre>
       <h2 id="diff">diff</h2>
       <p>Shows staged and unstaged diff stats.</p>
 
-      <h2 id="test">test</h2>
-      <p>Runs your project's test command from <a href="./config.html#scripts">scripts.test</a> or falls back to your package manager when <a href="./config.html#allow_package_scripts">allow_package_scripts</a> is true.</p>
+      
 
       <h2 id="hooks">hooks</h2>
       <p>Optional arrays of commands that run before/after core operations. See <a href="./config.html#hooks">hooks</a>.</p>

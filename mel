@@ -413,16 +413,12 @@ def cmd_publish():
         print(f"✖ You're on '{main}'. Publish only works from your workspace branch (not main).")
         sys.exit(1)
 
-    print("\n— Pre-publish test run —")
+    # Optional pre-publish hooks (teams can run tests via hooks or scripts)
     try:
         run_hooks(cfg, "pre_publish")
     except subprocess.CalledProcessError:
         print("✖ pre_publish hook failed. Aborting.")
         sys.exit(1)
-    rc = run_tests()
-    if rc != 0:
-        print("✖ Tests failed. Aborting publish.")
-        sys.exit(rc)
 
     yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
     if not yes_mode and cfg.get("require_publish_confirmation", True):
@@ -581,19 +577,7 @@ def cmd_pull():
                 print("⚠️  Conflicts may have occurred while applying stashed changes. Resolve and continue.")
         print("✓ Updated feature branch with latest main.")
 
-def run_tests():
-    root = repo_root()
-    cfg = get_cfg(root)
-    scripts = cfg.get("scripts") or {}
-    if "test" not in scripts and not cfg.get("allow_package_scripts"):
-        print("! No 'test' script configured. Skipping tests.")
-        return 0
-    rc = run_script_by_name(cfg, "test", extra_args=[])
-    return 0 if rc == 0 else 1
-
-def cmd_test():
-    rc = run_tests()
-    sys.exit(rc)
+ 
 
 def cmd_update():
     cmd_pull()
@@ -738,10 +722,9 @@ Basic commands:
   mel start [name]     Create/reset your workspace branch (defaults to your name if omitted)
   mel save "message"   Commit all (use message if provided), update with main, push
   mel sync             Save/stash as needed, update with main (rebase by default), push
-  mel publish          Run tests, fast‑forward merge your workspace branch into main, push, then rebase your branch (--yes to skip confirm)
+  mel publish          Fast‑forward merge your workspace branch into main, push, then rebase your branch (--yes to skip confirm)
   mel status           Show summary (ahead/behind, dirty files, last commit) and git status
   mel update           Get the updates that others have deployed
-  mel test             Run your project's test script
 
 Advanced commands:
   mel diff             Show staged and unstaged diff stats
@@ -791,8 +774,7 @@ def main():
         cmd_pull()
     elif cmd == "update":
         cmd_update()
-    elif cmd == "test":
-        cmd_test()
+    
     elif cmd == "sync":
         cmd_sync(non_interactive=yes_mode)
     elif cmd == "open":

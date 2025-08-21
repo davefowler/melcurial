@@ -65,10 +65,9 @@ def test_detect_package_manager(tmp_path, monkeypatch):
     assert mel.detect_package_manager(tmp_path.as_posix()) == "pnpm"
 
 
-def test_run_tests_with_scripts_test_all_pass(tmp_path, monkeypatch):
+def test_run_script_by_name_from_config_success(tmp_path, monkeypatch):
     mel = load_mel_module()
 
-    # Prepare repo root with .mel/config.json
     mel_dir = tmp_path / ".mel"
     mel_dir.mkdir()
     (mel_dir / "config.json").write_text(
@@ -86,12 +85,13 @@ def test_run_tests_with_scripts_test_all_pass(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mel, "run", fake_run)
 
-    rc = mel.run_tests()
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    rc = mel.run_script_by_name(cfg, "test", extra_args=[])
     assert rc == 0
     assert calls == ["cmd_test"]
 
 
-def test_run_tests_with_scripts_test_fails(tmp_path, monkeypatch):
+def test_run_script_by_name_from_config_failure(tmp_path, monkeypatch):
     mel = load_mel_module()
 
     mel_dir = tmp_path / ".mel"
@@ -110,8 +110,36 @@ def test_run_tests_with_scripts_test_fails(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mel, "run", fake_run)
 
-    rc = mel.run_tests()
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    rc = mel.run_script_by_name(cfg, "test", extra_args=[])
     assert rc == 1
+
+
+def test_run_script_falls_back_to_package_manager(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    # Prepare repo root with package.json (no local scripts config for target)
+    (tmp_path / "package.json").write_text('{"name":"x","scripts":{"build":"echo hi"}}')
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main","allow_package_scripts":true}')
+
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    # Ensure default package manager selection is used (npm)
+
+    calls = []
+
+    def fake_run(cmd, check=False, cwd=None, env=None):  # type: ignore[unused-argument]
+        calls.append(cmd)
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    rc = mel.run_script_by_name(cfg, "build", extra_args=["--flag"]) 
+    assert rc == 0
+    assert calls == ["npm run build -- --flag"]
 
 
 def test_format_merge_message(monkeypatch):

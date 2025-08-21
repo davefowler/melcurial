@@ -88,7 +88,7 @@ Open operations:
     - `merge`: `hg pull && hg update <workspace> && hg merge <default> && hg commit -m ...`.
   - Push current.
 - **publish**
-  - Hg: run tests; `hg pull && hg update <default>`; merge workspace into default; commit; push; switch back to workspace; rebase onto default if available.
+  - Hg: `hg pull && hg update <default>`; merge workspace into default; commit; push; switch back to workspace; rebase onto default if available. Teams should run tests via scripts or hooks as needed.
   - Note: no strict FF-only; document behavior.
 - **reset**
   - Hg: destructive move of bookmark to default tip and clean working copy; prefer rebase to linearize when needed; print safety warnings.

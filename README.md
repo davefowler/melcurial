@@ -5,7 +5,7 @@ mel is a single‑file CLI that wraps a few safe Git workflows in friendly comma
 ### Highlights
 - **start**: create or reset your personal workspace branch (defaults to your name). Mel sanitizes it into a safe branch name.
 - **save**: stage, commit, rebase on latest main, and push your branch.
-- **publish**: run tests, fast‑forward merge your branch into main, push, and rebase your branch back onto main.
+- **publish**: fast‑forward merge your branch into main, push, and rebase your branch back onto main. Teams can run tests via `pre_publish` hooks.
 - **reset**: hard‑reset your workspace branch back to main's tip and force‑push.
 - **sync**: one‑shot “save/stash, update with main via rebase or merge, push”.
 - **update**: alias of `pull`; in docs for non‑engineers we recommend `update` over `pull`.
@@ -13,7 +13,7 @@ mel is a single‑file CLI that wraps a few safe Git workflows in friendly comma
 - **diff**: quick diff stats of staged/unstaged changes.
 - **status**: show mel config, current branch info, ahead/behind counts, dirty files, and last commit, plus `git status -sb`.
 - **pull**: update main or fast‑forward merge latest main into your current branch, with an interactive prompt to handle uncommitted changes.
-- **test script**: configure a `test` script in `.mel/config.json` under `scripts`, or rely on package scripts (enabled by default).
+- **scripts**: define custom scripts in `.mel/config.json` and run them directly with `mel <name>`; when enabled, package scripts can also be invoked the same way.
 
 ### Development
 
@@ -58,21 +58,21 @@ mel start my-landing-update     # or just: mel start (will prompt for your name)
 # edit files...
 mel sync                        # save/stash, update with main, push
 mel status                      # view state at a glance
-mel publish                     # run tests, fast‑forward merge into main, push
+mel publish                     # fast‑forward merge into main, push
 ```
 
 ### Commands
 - **start [name]**: Create or reset your workspace branch from the latest main and push with upstream. If omitted, mel prompts for your name.
 - **save "message"**: Commit all changes (uses your message if provided; otherwise a timestamped default), fetch, rebase on main, and push.
 - **sync**: Save or stash as needed, update with latest main using the configured strategy (defaults to rebase), and push. Optionally opens a PR.
-- **publish**: Confirm, re‑run tests, update local main, fast‑forward merge your branch into main, push main, then rebase your branch on main and push again.
+- **publish**: Confirm, run any configured pre‑publish hooks, update local main, fast‑forward merge your branch into main, push main, then rebase your branch on main and push again.
 - **reset**: For workspace branches only. Hard‑reset to latest main and force‑push.
 - **update | pull**: Update main or update your workspace branch with latest main using the configured strategy.
 - **diff**: Show staged/unstaged diff stats.
 - **open [repo|branch|pr]**: Open your remote in the browser.
 - **status**: Prints summary JSON including `main`, `user_branch`, `current_branch`, ahead/behind counts, dirty file count, last commit, then shows `git status -sb`.
 - **pull**: If on `main`, `git pull --ff-only`. If on your workspace branch, fast‑forward merge latest main into the branch. If you have local changes, mel offers: save first, stash+drop, or cancel.
-- **test**: Runs the configured `scripts.test` command. If not present, mel falls back to your package manager's `test` script when `allow_package_scripts` is true (default).
+ 
 
 ### Configuration (for engineers)
 mel stores configuration in `.mel/config.json` at your repo root. If it doesn’t exist, it’s created when you run mel.
@@ -80,7 +80,7 @@ mel stores configuration in `.mel/config.json` at your repo root. If it doesn’
 Fields:
 - `main` (string): Your default branch name. Auto‑detected between `main` or `master` if not set.
 - `user_branch` (string): The last branch created via `mel start`.
-- `scripts` (object): Named commands. `test` under `scripts` is used by `mel test` and pre‑publish.
+- `scripts` (object): Named commands callable via `mel <name>`.
 - `update_strategy` (string): `rebase` (default) or `merge` for `pull/update/sync`.
 - `open_pr_on_sync` (boolean): If true, open a PR URL after `mel sync` (GitHub remotes supported).
 - `merge_message` (string): Template for merge commits. Supports `{branch}`, `{main}`, `{author}`, `{datetime}`.
@@ -93,7 +93,7 @@ Example `.mel/config.json`:
   "main": "main",
   "update_strategy": "rebase",
   "scripts": {
-    "test": "pytest -q --disable-warnings"
+    "lint": "ruff check ."
   },
   "allow_package_scripts": true,
   "open_pr_on_sync": true,
@@ -103,7 +103,7 @@ Example `.mel/config.json`:
 ```
 
 Notes:
-- `mel test` runs the `scripts.test` entry. If `test` is not in scripts, mel falls back to running your package manager's `test` script (package fallback is on by default).
+- If `allow_package_scripts` is true, unknown `mel <name>` calls fall back to your package manager's scripts.
 
 ### Safety and behavior
 - `start` creates or resets the target branch based on the latest `main` (local or `origin/main` if available) and sets upstream.
