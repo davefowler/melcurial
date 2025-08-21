@@ -5,7 +5,7 @@ Use these commands in your project folder. Mel will create a personal workspace 
 ```bash
 mel start          # creates your workspace branch (prompts for your name)
 # edit files...
-mel sync           # saves/stashes, updates with main, and pushes
+mel save           # saves your changes, updates with main, and pushes
 mel status         # shows what's going on
 mel publish        # runs checks and ships your changes to main
 ```

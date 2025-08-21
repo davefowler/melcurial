@@ -65,7 +65,7 @@ chmod +x /usr/local/bin/mel</code></pre>
             <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
             <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
 # edit files...
-mel sync            # saves/stashes your changes, updates with main, and pushes
+mel save            # saves your changes, updates with main, and pushes
 mel status          # shows what's going on
 mel publish         # runs checks and ships your changes to main</code></pre>
             <p class="muted">Tips:</p>
@@ -79,9 +79,8 @@ mel publish         # runs checks and ships your changes to main</code></pre>
           <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
             <p>Engineer‑oriented descriptions and full list:</p>
             <pre><code class="language-bash">mel start [name]    # create/reset your workspace branch from latest main (defaults to your name)
-mel save            # commit-all with confirmation → rebase/merge onto main per config → push
-mel sync            # save/stash prompt → update branch with latest main (rebase by default) → push
-mel update          # same as sync (alias)
+mel save            # commit-all with confirmation → rebase onto main → push
+mel update          # get latest changes from main (alias for sync)
 mel status          # prints ahead/behind, dirty files, last commit, plus `git status`
 mel publish         # run tests/hooks → FF merge branch into main → push main → rebase branch → push</code></pre>
 
