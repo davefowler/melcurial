@@ -1,4 +1,4 @@
-## mel — a tiny helper for non‑engineers
+## mel — a version control helper for non‑engineers
 
 mel is a single‑file CLI that wraps a few safe Git workflows in friendly commands. It was originally built to help a marketing teammate (Mel!) manage a static site without learning Git internals.
 
