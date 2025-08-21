@@ -3,7 +3,9 @@ set -euo pipefail
 
 # mel installer
 # - Installs the single-file CLI to a writable bin directory
+# - Works on macOS and Linux
 # - Defaults to /usr/local/bin if writable; otherwise falls back to ~/.local/bin
+# - Does NOT modify your PATH by default. To opt-in, set MEL_ADD_TO_PATH=1
 # - You can pass a custom install dir as the first argument
 
 REPO_RAW_BASE="https://raw.githubusercontent.com/davefowler/melcurial/main"
@@ -65,8 +67,30 @@ fi
 case ":$PATH:" in
   *":$TARGET_DIR:"*) ;;
   *)
-    warn "$TARGET_DIR is not in your PATH. Add this to your shell profile:"
-    printf '\n    export PATH="%s:$PATH"\n\n' "$TARGET_DIR"
+    if [[ "${MEL_ADD_TO_PATH:-}" == "1" ]]; then
+      # Opt-in PATH modification
+      PREFERRED_PROFILE=""
+      case "${SHELL:-}" in
+        *zsh*) PREFERRED_PROFILE="$HOME/.zshrc" ;;
+        *bash*) PREFERRED_PROFILE="$HOME/.bashrc" ;;
+        *) PREFERRED_PROFILE="$HOME/.profile" ;;
+      esac
+      if [[ ! -f "$PREFERRED_PROFILE" ]]; then
+        : > "$PREFERRED_PROFILE"
+      fi
+      if ! grep -qsF "$TARGET_DIR" "$PREFERRED_PROFILE"; then
+        info "Adding $TARGET_DIR to PATH in $(basename "$PREFERRED_PROFILE")"
+        {
+          printf '\n# Added by mel installer on %s\n' "$(date)"
+          printf 'export PATH="%s:$PATH"\n' "$TARGET_DIR"
+        } >> "$PREFERRED_PROFILE"
+        info "Reload your shell or run: source \"$PREFERRED_PROFILE\""
+      fi
+    else
+      warn "$TARGET_DIR is not in your PATH. Either run it via: $TARGET_PATH"
+      warn "Or add it to PATH by appending this to your shell profile:"
+      printf '\n    export PATH="%s:$PATH"\n\n' "$TARGET_DIR"
+    fi
     ;;
 esac
 

@@ -57,10 +57,10 @@
       <p class="muted">A tiny CLI that makes common Git workflows feel friendly.</p>
 
       <h2>Install</h2>
+      <p class="muted">macOS/Linux (no sudo). Installs to <code>~/.local/bin</code>.</p>
       <div class="code-wrapper">
-        <pre><code class="language-bash">curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
-chmod +x /usr/local/bin/mel</code></pre>
-        <button class="copy-btn" onclick="copyInstallCode()">Copy</button>
+        <pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash</code></pre>
+        <button class="copy-btn" onclick="copyInstallCode(this)">Copy</button>
       </div>
 
       <h2>Commands</h2>
@@ -129,11 +129,11 @@ mel run &lt;name&gt;       # run configured script; supports `--` for extra args
       usersBtn.addEventListener('click', () => activate('users'));
       engBtn.addEventListener('click', () => activate('eng'));
       
-      function copyInstallCode() {
-        const code = document.querySelector('.code-wrapper code');
+      function copyInstallCode(btn) {
+        const wrapper = btn.closest('.code-wrapper');
+        const code = wrapper.querySelector('code');
         const text = code.textContent;
         navigator.clipboard.writeText(text).then(() => {
-          const btn = document.querySelector('.copy-btn');
           btn.textContent = 'Copied!';
           btn.classList.add('copied');
           setTimeout(() => {

@@ -4,9 +4,9 @@ set -euo pipefail
 # Serve the docs/ directory locally
 # Usage: scripts/serve-docs.sh [port]
 
-PORT="${1:-8000}"
+PORT="${1:-8331}"
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 echo "Serving docs from $ROOT_DIR/docs at http://localhost:${PORT}/"

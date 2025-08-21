@@ -37,7 +37,7 @@
     </header>
     <main class="wrap">
       <h1>Configuration</h1>
-      <p>mel reads <code>.mel/config.json</code> at the repository root. If it’s missing, mel will create the <code>.mel</code> folder as needed. You can also provide a template (see <a href="#template">Template</a>).</p>
+      <p>mel reads <code>.mel/config.json</code> at the repository root. If it’s missing, mel will create the <code>.mel</code> folder as needed. You can also provide a template (see <a href="#template">Template</a>) of defaults for anyone using the repo.</p>
 
       <h2>Index</h2>
       <ul>
@@ -105,6 +105,11 @@
       <p>You can provide a template config at <code>.mel/config_template.json</code> (repo) or <code>~/.mel/config_template.json</code> (user). On first run, mel will import it to <code>.mel/config.json</code> if none exists.</p>
 
       <h2>Example</h2>
+
+      <p>In this example, we're setting the default branch to <code>main</code>, using <code>rebase</code> for updates, and opening a PR on sync. We're also defining a test script and a build script.</p>
+      
+      <p>We're also defining two extra commands in the script, a <code>test</code> script and a <code>build</code> script.</p>
+      
       <pre><code class="language-json">{
   "main": "main",
   "update_strategy": "rebase",
