@@ -21,6 +21,10 @@
       pre { padding: 14px; overflow: auto; }
       .muted { color: var(--muted); }
       .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
+      .code-wrapper { position: relative; }
+      .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; color: var(--muted); transition: all 0.2s; }
+      .copy-btn:hover { background: #fff; color: var(--fg); border-color: #ccc; }
+      .copy-btn.copied { background: var(--accent); color: #fff; border-color: var(--accent); }
       .card { border: 1px solid #eaeaea; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); margin-top: 8px; }
       .tabbar { display: flex; gap: 0; align-items: stretch; background: #f4f4f4; border-bottom: 1px solid #eaeaea; }
       .tabbar button { flex: 1; border: 0; background: transparent; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--muted); }
@@ -51,8 +55,11 @@
       <p class="muted">A tiny CLI that makes common Git workflows feel friendly.</p>
 
       <h2>Install</h2>
-      <pre><code class="language-bash">curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
+      <div class="code-wrapper">
+        <pre><code class="language-bash">curl -L -o /usr/local/bin/mel https://raw.githubusercontent.com/davefowler/melcurial/main/mel
 chmod +x /usr/local/bin/mel</code></pre>
+        <button class="copy-btn" onclick="copyInstallCode()">Copy</button>
+      </div>
 
       <h2>Commands</h2>
       <div class="card" role="region" aria-label="Commands">
@@ -85,9 +92,9 @@ mel publish         # run tests → FF merge to main → push → rebase branch<
 
             <p class="muted">Advanced:</p>
             <pre><code class="language-bash">mel diff            # show staged/unstaged diff stats
-mel open repo       # open remote repo page
-mel open branch     # open current branch page
-mel open pr         # open compare PR URL (GitHub)
+mel open repo       # open remote repo page in your browser
+mel open branch     # open current branch page in your browser
+mel open pr         # open compare PR URL (GitHub) in your browser
 mel reset           # hard reset workspace branch to latest main and force‑push
 mel run &lt;name&gt;       # run configured script; supports `--` for extra args</code></pre>
 
@@ -119,6 +126,20 @@ mel run &lt;name&gt;       # run configured script; supports `--` for extra args
       }
       usersBtn.addEventListener('click', () => activate('users'));
       engBtn.addEventListener('click', () => activate('eng'));
+      
+      function copyInstallCode() {
+        const code = document.querySelector('.code-wrapper code');
+        const text = code.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = document.querySelector('.copy-btn');
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2000);
+        });
+      }
     </script>
   </body>
   </html>
