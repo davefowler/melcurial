@@ -64,7 +64,6 @@ chmod +x /usr/local/bin/mel</code></pre>
           <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
             <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
             <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
-# edit files...
 mel save            # saves your changes, updates with main, and pushes
 mel status          # shows what's going on
 mel publish         # runs checks and ships your changes to main</code></pre>
@@ -78,19 +77,19 @@ mel publish         # runs checks and ships your changes to main</code></pre>
 
           <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
             <p>Engineer‑oriented descriptions and full list:</p>
-            <pre><code class="language-bash">mel start [name]    # create/reset your workspace branch from latest main (defaults to your name)
-mel save            # commit-all with confirmation → rebase onto main → push
-mel update          # get latest changes from main (alias for sync)
-mel status          # prints ahead/behind, dirty files, last commit, plus `git status`
-mel publish         # run tests/hooks → FF merge branch into main → push main → rebase branch → push</code></pre>
+            <pre><code class="language-bash">mel start [name]    # create/reset workspace branch from latest main
+mel save            # commit-all → rebase onto main → push
+mel update          # get latest changes from main
+mel status          # show ahead/behind, dirty files, last commit + git status
+mel publish         # run tests → FF merge to main → push → rebase branch</code></pre>
 
             <p class="muted">Advanced:</p>
-            <pre><code class="language-bash">mel diff            # show staged and unstaged diff stats
+            <pre><code class="language-bash">mel diff            # show staged/unstaged diff stats
 mel open repo       # open remote repo page
 mel open branch     # open current branch page
 mel open pr         # open compare PR URL (GitHub)
-mel reset           # hard reset your workspace branch to latest main and force‑push
-mel run &lt;name&gt;       # run configured script; supports `--` to pass extra args</code></pre>
+mel reset           # hard reset workspace branch to latest main and force‑push
+mel run &lt;name&gt;       # run configured script; supports `--` for extra args</code></pre>
 
             <p class="muted">See <a href="./config.html">Config</a> for scripts, hooks, update strategy, and non‑interactive mode.</p>
           </section>
