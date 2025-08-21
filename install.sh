@@ -25,6 +25,16 @@ choose_target_dir() {
     return 0
   fi
 
+  # If Homebrew is installed, prefer its bin directory (usually on PATH and user-writable)
+  if command -v brew >/dev/null 2>&1; then
+    local brew_bin
+    brew_bin="$(brew --prefix)/bin"
+    if [[ -d "$brew_bin" && -w "$brew_bin" ]]; then
+      echo "$brew_bin"
+      return 0
+    fi
+  fi
+
   # On macOS with Homebrew, prefer /opt/homebrew/bin if writable (Apple Silicon default PATH)
   if [[ "${OSTYPE:-}" == darwin* ]]; then
     if [[ -d "/opt/homebrew/bin" && -w "/opt/homebrew/bin" ]]; then
