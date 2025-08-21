@@ -79,6 +79,7 @@
             <pre><code class="language-bash">mel start           # creates your workspace branch (prompts for a name if omitted)
 mel save "message"  # saves (optionally using your message), updates with main, and pushes
 mel status          # shows what's going on
+mel reset           # reset your workspace to the latest main (clean slate)
 mel publish         # runs checks and ships your changes to main</code></pre>
             <p class="muted">Tips:</p>
             <ul class="checklist">
@@ -94,10 +95,8 @@ mel publish         # runs checks and ships your changes to main</code></pre>
 mel save "message"  # commit-all (use message if provided) → rebase onto main → push
 mel update          # get latest changes from main
 mel status          # show ahead/behind, dirty files, last commit + git status
-mel publish         # FF merge to main → push → rebase branch</code></pre>
-
-            <p class="muted">Advanced:</p>
-            <pre><code class="language-bash">mel diff            # show staged/unstaged diff stats
+mel publish         # FF merge to main → push → rebase branch
+mel diff            # show staged/unstaged diff stats
 mel open repo       # open remote repo page in your browser
 mel open branch     # open current branch page in your browser
 mel open pr         # open compare PR URL (GitHub) in your browser
