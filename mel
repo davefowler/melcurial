@@ -92,16 +92,24 @@ def commit_all(default_msg, root=None):
                 print("\n📁 Files to be added:")
                 for line in out.strip().split('\n'):
                     if line:
-                        status = line[:2]
-                        filename = line[3:]
-                        if status.startswith('??'):  # Untracked
-                            print(f"  + {filename} (new)")
-                        elif status.startswith(' M'):  # Modified
-                            print(f"  ~ {filename} (modified)")
-                        elif status.startswith(' D'):  # Deleted
-                            print(f"  - {filename} (deleted)")
-                        else:
-                            print(f"  ? {filename}")
+                        # Parse git status porcelain format: "XY PATH"
+                        # X = status of index, Y = status of work tree
+                        if len(line) >= 3:
+                            status = line[:2]
+                            filename = line[3:].strip()
+                            print(f"DEBUG: line='{repr(line)}', status='{repr(status)}', filename='{repr(filename)}'")
+                            if status == '??':  # Untracked
+                                print(f"  + {filename} (new)")
+                            elif status == ' M':  # Modified
+                                print(f"  ~ {filename} (modified)")
+                            elif status == ' D':  # Deleted
+                                print(f"  - {filename} (deleted)")
+                            elif status == 'A ':  # Added
+                                print(f"  + {filename} (added)")
+                            elif status == 'R ':  # Renamed
+                                print(f"  ~ {filename} (renamed)")
+                            else:
+                                print(f"  ? {filename} ({repr(status)})")
                 
                 yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
                 if not yes_mode:
