@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # mel — "melcurial" helper for non-engineers
 # Commands:
-#   mel start [name]
+#   mel b <branch> | mel branch <branch>
 #   mel save "message"
 #   mel publish
 #   mel reset
+#   mel clear
 #   mel status
 #   mel pull | mel update
 #   mel help
 #   mel sync
-#   mel open [repo|branch|pr]
+#   mel open
+#   mel pr
 #   mel diff
 
 import json, os, subprocess, sys, datetime, shlex, re, platform
@@ -71,6 +73,7 @@ mel publish         # FF merge to main → push → rebase branch
 """.strip()
 
 DOC_FOR_ENGINEERS_ADVANCED = """
+mel b <branch>     # create or switch to branch if existing
 mel diff            # show staged/unstaged diff stats
 mel open            # open remote repo page in your browser
 mel pr              # open compare PR URL (GitHub) in your browser
