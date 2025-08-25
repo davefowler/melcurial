@@ -30,9 +30,6 @@ def build() -> int:
         "HELP_BASIC": mel.HELP_BASIC,
         "HELP_ADVANCED": mel.HELP_ADVANCED,
         "HELP_FOOTER": mel.HELP_FOOTER,
-        "DOC_FOR_NON_ENGINEERS": mel.DOC_FOR_NON_ENGINEERS,
-        "DOC_FOR_ENGINEERS": mel.DOC_FOR_ENGINEERS,
-        "DOC_FOR_ENGINEERS_ADVANCED": mel.DOC_FOR_ENGINEERS_ADVANCED,
     }
 
     pages = [

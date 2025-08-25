@@ -11,8 +11,7 @@ cd "$ROOT_DIR"
 
 echo "Building docs with Jinja2…"
 if command -v python3 >/dev/null 2>&1; then
-  python3 -c "import jinja2" >/dev/null 2>&1
-  if [ $? -eq 0 ]; then
+  if python3 -c "import jinja2" >/dev/null 2>&1; then
     python3 scripts/build_docs.py || true
   else
     echo "Setting up local venv for docs…"

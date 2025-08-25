@@ -1,43 +1,20 @@
 #!/usr/bin/env python3
-# mel — "melcurial" helper for non-engineers
-# Commands:
-#   mel b <branch> | mel branch <branch>
-#   mel save "message"
-#   mel publish
-#   mel reset
-#   mel clear
-#   mel status
-#   mel pull | mel update
-#   mel help
-#   mel sync
-#   mel open
-#   mel pr
-#   mel diff
 
 import json, os, subprocess, sys, datetime, shlex, re, platform
 
 # -----------------------------
 # Shared help text (single source of truth for CLI and docs)
 # -----------------------------
-# Header and section blocks intentionally include their own leading newlines
-# so they can be concatenated directly.
-HELP_HEADER = """
-mel — a simpler git abstraction for non‑engineers
-""".strip()
 
-HELP_BASIC = """
 
-Basic commands:
+HELP_BASIC = """Basic commands:
   mel save "message"  # saves your changes and gets the latest from others
   mel status          # shows what changes you've made since saving
   mel publish         # save and publish your work to main
   mel reset           # ditch your changes and start over from main
-
 """
 
-HELP_ADVANCED = """
-
-Advanced commands:
+HELP_ADVANCED = """Advanced commands:
   mel b <branch name> # create or switch to branch if existing
   mel save "message"  # save your changes and get the latest from others
   mel update          # rebase on the latest from main
@@ -51,36 +28,18 @@ Advanced commands:
   mel <name>          # run configured or package script; supports `--` for extra args
 """
 
+# Header and section blocks intentionally include their own leading newlines
+# so they can be concatenated directly.
+HELP_HEADER = """
+mel — a simpler git abstraction so non-engineers can contribute
+""".strip()
+
 HELP_FOOTER = """
   
 Docs: https://davefowler.github.io/melcurial/
 """
 
-# -----------------------------
-# Docs usage text blocks (exact wording shown on the site)
-# -----------------------------
-DOC_FOR_NON_ENGINEERS = """
-mel save "message"  # saves (optionally using your message), updates with main, and pushes
-mel status          # shows what's going on
-mel publish         # runs checks and ships your changes to main
-""".strip()
 
-DOC_FOR_ENGINEERS = """
-mel save "message"  # commit-all (use message if provided) → rebase onto main → push
-mel update          # get latest changes from main
-mel status          # show ahead/behind, dirty files, last commit + git status
-mel publish         # FF merge to main → push → rebase branch
-""".strip()
-
-DOC_FOR_ENGINEERS_ADVANCED = """
-mel b <branch>     # create or switch to branch if existing
-mel diff            # show staged/unstaged diff stats
-mel open            # open remote repo page in your browser
-mel pr              # open compare PR URL (GitHub) in your browser
-mel clear           # stash your uncommitted changes (worktree + untracked)
-mel reset           # restart your branch from latest main and force‑push
-mel <name>          # run configured or package script; supports `--` for extra args
-""".strip()
 
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
