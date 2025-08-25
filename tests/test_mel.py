@@ -2,6 +2,7 @@ import importlib.util
 from importlib.machinery import SourceFileLoader
 import pathlib
 import types
+import pytest
 
 
 def load_mel_module() -> types.ModuleType:
@@ -279,3 +280,134 @@ def test_start_uses_repo_template_if_available(tmp_path, monkeypatch):
     assert cfg_path.exists()
     cfg_text = cfg_path.read_text()
     assert '"scripts"' in cfg_text and '"test"' in cfg_text and '"echo hi"' in cfg_text
+
+
+def test_help_basic_mode_shows_basic_only(tmp_path, monkeypatch, capsys):
+    mel = load_mel_module()
+
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    # contributor_mode basic should hide Advanced section
+    (mel_dir / "config.json").write_text(
+        '{"main":"main","contributor_mode":"basic"}'
+    )
+
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+
+    mel.cmd_help()
+    out = capsys.readouterr().out
+    assert "Basic commands:" in out
+    assert "Advanced commands:" not in out
+    assert "mel reset" in out
+    assert "mel diff" not in out
+    assert "mel update" not in out
+
+
+def test_help_advanced_mode_shows_advanced(tmp_path, monkeypatch, capsys):
+    mel = load_mel_module()
+
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    # contributor_mode advanced should include Advanced section
+    (mel_dir / "config.json").write_text(
+        '{"main":"main","contributor_mode":"advanced"}'
+    )
+
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+
+    mel.cmd_help()
+    out = capsys.readouterr().out
+    assert "Basic commands:" in out
+    assert "Advanced commands:" in out
+    assert "mel reset" in out
+    assert "mel diff" in out
+
+
+def test_script_overrides_builtin_publish(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    # Configure a script named 'publish' to override the built-in
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text(
+        '{"main":"main","scripts":{"publish":"mel open pr"}}'
+    )
+
+    # Use temp path as repo root; avoid real git calls
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+
+    calls = []
+
+    def fake_run(cmd, check=False, cwd=None, env=None):  # type: ignore[unused-argument]
+        calls.append(cmd)
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+
+    # Simulate CLI invocation: `mel publish`
+    monkeypatch.setattr(mel.sys, "argv", ["mel", "publish"]) 
+    monkeypatch.setenv("MEL_YES", "1")
+
+    with pytest.raises(SystemExit) as e:
+        mel.main()
+
+    # Should exit successfully and have run the configured script, not the built-in
+    assert e.value.code == 0
+    assert calls == ["mel open pr"]
+
+
+def test_auto_init_creates_config_at_git_root_from_subdir(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    nested = tmp_path / "nested" / "deep"
+    nested.mkdir(parents=True)
+
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+
+    monkeypatch.chdir(nested)
+
+    def fake_run(cmd, check=True, cwd=None, env=None):  # type: ignore[unused-argument]
+        if isinstance(cmd, list) and cmd[:3] == ["git", "rev-parse", "--show-toplevel"]:
+            return 0, tmp_path.as_posix() + "\n"
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    # input is a builtin, so patch builtins.input
+    import builtins as _builtins
+    monkeypatch.setattr(_builtins, "input", lambda prompt="": "Alice Example")
+
+    mel.auto_init_if_needed()
+
+    cfg_path = tmp_path / ".mel" / "config.json"
+    assert cfg_path.exists()
+    assert not (nested / ".mel" / "config.json").exists()
+
+
+def test_repo_root_is_used_even_when_called_in_subdir(tmp_path, monkeypatch):
+    mel = load_mel_module()
+
+    nested = tmp_path / "a" / "b" / "c"
+    nested.mkdir(parents=True)
+    (tmp_path / ".mel").mkdir()
+
+    monkeypatch.chdir(nested)
+
+    calls = []
+
+    def fake_run(cmd, check=True, cwd=None, env=None):  # type: ignore[unused-argument]
+        calls.append(cmd)
+        if isinstance(cmd, list) and cmd[:3] == ["git", "rev-parse", "--show-toplevel"]:
+            return 0, tmp_path.as_posix() + "\n"
+        return 0, ""
+
+    monkeypatch.setattr(mel, "run", fake_run)
+
+    root = mel.repo_root()
+    assert root == tmp_path.as_posix()
+    assert any(isinstance(c, list) and c[:3] == ["git", "rev-parse", "--show-toplevel"] for c in calls)

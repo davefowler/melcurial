@@ -1,0 +1,35 @@
+{% extends "base.html.j2" %}
+{% set title = "About — mel" %}
+{% set active = 'about' %}
+
+{% block content %}
+  <h1>About <code>mel</code>curial</h1>
+  <p>The first version of <code>mel</code> started years ago at <a href="https://chartio.com">Chartio</a> when my Head of Communications, Mel, needed to update our static site without learning a full developer workflow. 
+        
+        At the time we were on Mercurial, so I (<a href="https://thingsilearned.com/about">Dave Fowler</a>) built a tool and set of shortcuts that reduced the process to a few friendly commands - and named it <code>melcurial</code> (code-name <code>mel</code>) after its primary user!</p>
+
+  <p>Today, Product Managers and other non‑engineers run into the same barriers. <code>mel</code> exists to make contributing to a codebase organized, safe, and easy—for everyone.</p>
+
+  <p>Here she is celebrating her new found version control powers:</p>
+  <img src="mel.jpeg" alt="Mel enjoying mel" style="width: 100%; max-width: 350px; height: auto;">
+
+  <h2>What mel is</h2>
+  <ul>
+    <li><strong>Simple</strong>: a tiny set of commands</li>
+    <li><strong>Safe</strong>: confirmations and helpful prompts</li>
+    <li><strong>Organized</strong>: proper Git workflow under the hood</li>
+    <li><strong>Friendly</strong>: clear, non‑technical language</li>
+  </ul>
+
+  <h2>Who it’s for</h2>
+  <ul>
+    <li>Content editors and communicators</li>
+    <li>Product Managers learning to contribute</li>
+    <li>Designers making small UI/content tweaks</li>
+    <li>Engineers who want a smooth, quick workflow</li>
+  </ul>
+
+  <p class="muted">Goal: make contributing to codebases as easy as possible for everyone involved.</p>
+{% endblock %}
+
+

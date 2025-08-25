@@ -14,6 +14,71 @@
 
 import json, os, subprocess, sys, datetime, shlex, re, platform
 
+# -----------------------------
+# Shared help text (single source of truth for CLI and docs)
+# -----------------------------
+# Header and section blocks intentionally include their own leading newlines
+# so they can be concatenated directly.
+HELP_HEADER = """
+mel — a simpler git abstraction for non‑engineers
+""".strip()
+
+HELP_BASIC = """
+
+Basic commands:
+  mel save "message"  # saves your changes and gets the latest from others
+  mel status          # shows what changes you've made since saving
+  mel publish         # save and publish your work to main
+  mel reset           # ditch your changes and start over from main
+
+"""
+
+HELP_ADVANCED = """
+
+Advanced commands:
+  mel b <branch name> # create or switch to branch if existing
+  mel save "message"  # save your changes and get the latest from others
+  mel update          # rebase on the latest from main
+  mel status          # shows what changes you've made since saving
+  mel diff            # show staged/unstaged diff stats
+  mel open            # open remote repo page in your browser
+  mel help            # show this help
+  mel pr              # go to the page to make a new PR
+  mel clear           # stash your uncommitted changes (worktree + untracked)
+  mel reset           # restart your branch from the latest main (force-push)
+  mel <name>          # run configured or package script; supports `--` for extra args
+"""
+
+HELP_FOOTER = """
+  
+Docs: https://davefowler.github.io/melcurial/
+"""
+
+# -----------------------------
+# Docs usage text blocks (exact wording shown on the site)
+# -----------------------------
+DOC_FOR_NON_ENGINEERS = """
+mel save "message"  # saves (optionally using your message), updates with main, and pushes
+mel status          # shows what's going on
+mel publish         # runs checks and ships your changes to main
+""".strip()
+
+DOC_FOR_ENGINEERS = """
+mel save "message"  # commit-all (use message if provided) → rebase onto main → push
+mel update          # get latest changes from main
+mel status          # show ahead/behind, dirty files, last commit + git status
+mel publish         # FF merge to main → push → rebase branch
+""".strip()
+
+DOC_FOR_ENGINEERS_ADVANCED = """
+mel diff            # show staged/unstaged diff stats
+mel open            # open remote repo page in your browser
+mel pr              # open compare PR URL (GitHub) in your browser
+mel clear           # stash your uncommitted changes (worktree + untracked)
+mel reset           # restart your branch from latest main and force‑push
+mel <name>          # run configured or package script; supports `--` for extra args
+""".strip()
+
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
 
@@ -166,6 +231,9 @@ def get_cfg(root):
         cfg["require_publish_confirmation"] = True
     if "require_add_confirmation" not in cfg:
         cfg["require_add_confirmation"] = True
+    # contributor_mode controls help visibility; only configurable via .mel/config.json
+    if "contributor_mode" not in cfg:
+        cfg["contributor_mode"] = "basic"
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -366,6 +434,12 @@ def cmd_start(branch_name):
     save_config(root, cfg)
     print(f"✓ Now on '{branch_name}' (based on {base_ref}).")
 
+def cmd_b(branch_name):
+    return cmd_start(sanitize_branch_name(branch_name))
+
+def cmd_branch(branch_name):
+    return cmd_b(branch_name)
+
 def cmd_save(message=None):
     root = repo_root()
     cfg = get_cfg(root)
@@ -373,7 +447,7 @@ def cmd_save(message=None):
     cur = current_branch()
 
     if cur == main:
-        print(f"✖ You’re on '{main}'. Run 'mel start' to create your workspace branch first.")
+        print(f"✖ You’re on '{main}'. Create your workspace branch first (e.g. 'git checkout -b <name>').")
         sys.exit(1)
 
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -471,9 +545,33 @@ def cmd_reset():
     if not yes_mode:
         input("Press Enter to confirm, Ctrl+C to abort…")
 
+    # Stash any local uncommitted changes for safety before resetting
+    rc, porcelain = run(["git", "status", "--porcelain"], check=False)
+    if porcelain.strip():
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        print("Stashing local changes before reset…")
+        run(["git", "stash", "push", "-u", "-m", f"mel reset backup @ {ts}"]) 
+
     run(["git", "reset", "--hard", base_ref])
     run(["git", "push", "--force", "origin", branch])
     print(f"✓ Branch {branch} reset to {base_ref} and force-pushed.")
+
+def cmd_clear():
+    root = repo_root()
+    # Stash uncommitted changes (including untracked) without touching branch history
+    rc, porcelain = run(["git", "status", "--porcelain"], check=False)
+    if not porcelain.strip():
+        print("… No local changes to clear.")
+        return
+    yes_mode = (os.environ.get("MEL_YES") == "1" or "--yes" in sys.argv)
+    if not yes_mode:
+        resp = input("This will stash your local changes. Type 'y' to continue: ")
+        if resp.lower() != 'y':
+            print("Clear cancelled.")
+            sys.exit(0)
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    run(["git", "stash", "push", "-u", "-m", f"mel clear @ {ts}"])
+    print("✓ Changes stashed. Use 'git stash list' to view and 'git stash pop' to restore.")
 
 def cmd_status():
     root = repo_root()
@@ -596,23 +694,25 @@ def cmd_open(target=None):
     if not base:
         print("! Cannot determine origin URL.")
         sys.exit(1)
-    cur = current_branch()
-    if not target or target == "repo":
-        url = base
-    elif target == "branch":
-        if "github.com" in base:
-            url = f"{base}/tree/{cur}"
-        else:
-            url = base
-    elif target == "pr":
-        if "github.com" in base:
-            url = f"{base}/compare/{main}...{cur}?expand=1"
-        else:
-            url = base
-    else:
-        print(f"Unknown open target: {target}")
-        sys.exit(1)
+    # Simplified: always open repo homepage
+    url = base
     print(f"→ Opening {url}")
+    open_url(url)
+
+def cmd_pr():
+    root = repo_root()
+    cfg = get_cfg(root)
+    main = cfg["main"]
+    base = get_origin_web_url()
+    if not base:
+        print("! Cannot determine origin URL.")
+        sys.exit(1)
+    cur = current_branch()
+    if "github.com" in base:
+        url = f"{base}/compare/{main}...{cur}?expand=1"
+    else:
+        url = base
+    print(f"→ Opening PR: {url}")
     open_url(url)
 
 def ensure_clean_or_handle(non_interactive=False):
@@ -647,7 +747,7 @@ def cmd_sync(non_interactive=False):
     cur = current_branch()
 
     if cur == main:
-        print(f"✖ You’re on '{main}'. Run 'mel start' first to create your workspace branch.")
+        print(f"✖ You’re on '{main}'. Create your workspace branch first (e.g. 'git checkout -b <name>').")
         sys.exit(1)
 
     action = ensure_clean_or_handle(non_interactive=non_interactive)
@@ -715,27 +815,27 @@ def cmd_help():
             for k, v in sorted(package.items()):
                 scripts_section += f"  mel {k}        {v}\n"
 
-    help_text = """
-mel — a simpler git abstraction for non‑engineers
+    mode = (cfg.get("contributor_mode") or "basic").lower()
 
-Basic commands:
-  mel start [name]     Create/reset your workspace branch (defaults to your name if omitted)
-  mel save "message"   Commit all (use message if provided), update with main, push
-  mel sync             Save/stash as needed, update with main (rebase by default), push
-  mel publish          Fast‑forward merge your workspace branch into main, push, then rebase your branch (--yes to skip confirm)
-  mel status           Show summary (ahead/behind, dirty files, last commit) and git status
-  mel update           Get the updates that others have deployed
-
-Advanced commands:
-  mel diff             Show staged and unstaged diff stats
-  mel open [repo|branch|pr]  Open remote in browser
-  mel reset            Hard reset your workspace branch to main and force-push
-  mel <name> [-- args...]      Run a configured script directly (or package script when allowed)
-  mel help             Show this help
-  
-Docs: https://davefowler.github.io/melcurial/
-""" + scripts_section
+    if mode == "basic":
+        help_text = HELP_HEADER + HELP_BASIC + HELP_FOOTER + scripts_section
+    else:
+        help_text = HELP_HEADER + HELP_BASIC + HELP_ADVANCED + HELP_FOOTER + scripts_section
     print(help_text.strip())
+
+def auto_init_if_needed():
+    # Ensure a repo exists and config is present; if missing, prompt and create branch + config
+    root = repo_root()
+    cfg_path = os.path.join(root, CONFIG_DIRNAME, CONFIG_FILENAME)
+    if os.path.exists(cfg_path):
+        return
+    print("It looks like this is your first time using mel in this repo.")
+    entered = input("What's your name? We'll create a branch with it: ").strip()
+    if not entered:
+        print("✖ No name provided.")
+        sys.exit(1)
+    branch = sanitize_branch_name(entered)
+    cmd_start(branch)
 
 def main():
     if len(sys.argv) < 2:
@@ -746,43 +846,74 @@ def main():
     cmd = args[0]
     if cmd in ("help", "-h", "--help"):
         cmd_help()
-    elif cmd == "start":
-        if len(args) >= 2:
-            branch = args[1]
-        else:
-            print("No branch provided.")
-            entered = input("What's your name? We'll create a branch with it: ").strip()
-            if not entered:
-                print("✖ No name provided.")
-                sys.exit(1)
-            branch = entered
-        cmd_start(sanitize_branch_name(branch))
-    elif cmd == "save":
+    else:
+        # Check for configured scripts BEFORE built-ins so users can override commands
+        try:
+            root = repo_root()
+            cfg = get_cfg(root)
+        except Exception:
+            cfg = {"scripts": {}, "allow_package_scripts": True}
+        configured_scripts = (cfg.get("scripts") or {})
+        if cmd in configured_scripts:
+            # Collect extra args (support both "-- args" and direct args)
+            if "--" in args:
+                idx = args.index("--")
+                extra = args[idx+1:]
+            else:
+                extra = args[1:]
+            rc = run_script_by_name(cfg, cmd, extra)
+            sys.exit(rc)
+    
+    if cmd == "save":
+        auto_init_if_needed()
         msg = args[1] if len(args) >= 2 else None
         cmd_save(msg)
     elif cmd == "deploy":
+        auto_init_if_needed()
         cmd_deploy()
     elif cmd == "publish":
+        auto_init_if_needed()
         cmd_publish()
     elif cmd == "freshstart":
+        auto_init_if_needed()
         cmd_freshstart()
     elif cmd == "reset":
+        auto_init_if_needed()
         cmd_reset()
+    elif cmd in ("b", "branch"):
+        auto_init_if_needed()
+        if len(args) >= 2:
+            cmd_b(args[1])
+        else:
+            print("Usage: mel b <branch> | mel branch <branch>")
+            sys.exit(1)
+    elif cmd == "clear":
+        auto_init_if_needed()
+        cmd_clear()
     elif cmd == "status":
+        auto_init_if_needed()
         cmd_status()
     elif cmd == "pull":
+        auto_init_if_needed()
         cmd_pull()
     elif cmd == "update":
+        auto_init_if_needed()
         cmd_update()
     
     elif cmd == "sync":
+        auto_init_if_needed()
         cmd_sync(non_interactive=yes_mode)
     elif cmd == "open":
-        target = args[1] if len(args) >= 2 else None
-        cmd_open(target)
+        auto_init_if_needed()
+        cmd_open()
+    elif cmd == "pr":
+        auto_init_if_needed()
+        cmd_pr()
     elif cmd == "diff":
+        auto_init_if_needed()
         cmd_diff()
     elif cmd == "scripts":
+        auto_init_if_needed()
         root = repo_root()
         cfg = get_cfg(root)
         configured = cfg.get("scripts") or {}

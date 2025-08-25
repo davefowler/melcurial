@@ -18,6 +18,9 @@ classifiers = [
   "Topic :: Software Development :: Version Control",
   "Operating System :: OS Independent",
 ]
+dependencies = [
+  "Jinja2>=3.1",
+]
 
 [tool.setuptools]
 include-package-data = false

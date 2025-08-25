@@ -1,53 +1,8 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>mel — friendly git abstraction for non‑engineers</title>
-    <style>
-      :root { --fg: #111; --muted: #555; --bg: #fff; --accent: #0b5; --accent-ink: #fff; }
-      html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
-      a { color: inherit; }
-      .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 60px; }
-      header { border-bottom: 1px solid #eee; }
-      nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
-      nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
-      nav a.active, nav a:hover { color: var(--fg); background: #f4f4f4; }
-      h1 { font-size: 2rem; margin: 12px 0 8px; }
-      h2 { font-size: 1.25rem; margin-top: 28px; }
-      p { margin: 10px 0; }
-      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; border-radius: 6px; }
-      code { padding: 2px 6px; }
-      pre { padding: 14px; overflow: auto; }
-      .muted { color: var(--muted); }
-      .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
-      .card { border: 1px solid #eaeaea; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); margin-top: 8px; }
-      .tabbar { display: flex; gap: 0; align-items: stretch; background: #f4f4f4; border-bottom: 1px solid #eaeaea; }
-      .tabbar button { flex: 1; border: 0; background: transparent; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--muted); }
-      .tabbar button:first-child { border-right: 1px solid #eaeaea; }
-      .tabbar button.active { background: #fff; color: var(--fg); }
-      .card-body { padding: 18px; }
-      .section { display: none; }
-      .section.active { display: block; }
-      footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
-      ul.checklist { margin: 8px 0 0; padding-left: 18px; }
-    </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script defer>document.addEventListener('DOMContentLoaded',function(){ if(window.hljs){ hljs.highlightAll(); } });</script>
-  </head>
-  <body>
-    <header>
-      <div class="wrap">
-        <nav>
-          <a class="active" href="./">Home</a>
-          <a class="" href="./config.html">Config</a>
-          <a class="" href="./explained.html">Explained</a>
-          <a class="" href="./about.html">About</a>
-        </nav>
-      </div>
-    </header>
-    <main class="wrap">
+{% extends "base.html.j2" %}
+{% set title = "mel — friendly git abstraction for non‑engineers" %}
+{% set active = 'home' %}
+
+{% block content %}
   <h1><code>mel</code>curial</h1>
   <p class="muted">Many non-engineers have contributions for codebases (static sites, docs, design tweaks, image swaps, etc.) and the learning curve on git is steep.
   
@@ -71,9 +26,7 @@
     <div class="card-body">
       <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
         <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
-        <pre><code class="language-bash">mel save "message"  # saves (optionally using your message), updates with main, and pushes
-mel status          # shows what's going on
-mel publish         # runs checks and ships your changes to main</code></pre>
+        <pre><code class="language-bash">{{ DOC_FOR_NON_ENGINEERS }}</code></pre>
         <p class="muted">Tips:</p>
         <ul class="checklist">
           <li>If mel asks what to do with local changes, choose Save or Stash.</li>
@@ -84,17 +37,9 @@ mel publish         # runs checks and ships your changes to main</code></pre>
 
       <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
         <p>Engineer‑oriented descriptions and full list:</p>
-        <pre><code class="language-bash">mel save "message"  # commit-all (use message if provided) → rebase onto main → push
-mel update          # get latest changes from main
-mel status          # show ahead/behind, dirty files, last commit + git status
-mel publish         # FF merge to main → push → rebase branch
+        <pre><code class="language-bash">{{ DOC_FOR_ENGINEERS }}
 
-mel diff            # show staged/unstaged diff stats
-mel open            # open remote repo page in your browser
-mel pr              # open compare PR URL (GitHub) in your browser
-mel clear           # stash your uncommitted changes (worktree + untracked)
-mel reset           # restart your branch from latest main and force‑push
-mel <name>          # run configured or package script; supports `--` for extra args</code></pre>
+{{ DOC_FOR_ENGINEERS_ADVANCED }}</code></pre>
         <p class="muted">See <a href="./config.html">Config</a> for scripts, hooks, update strategy, and non‑interactive mode.</p>
       </section>
     </div>
@@ -152,7 +97,6 @@ mel <name>          # run configured or package script; supports `--` for extra 
       }
     })();
   </script>
-    </main>
-  </body>
-  </html>
+{% endblock %}
+
 

@@ -1,53 +1,8 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Explained — how mel works</title>
-    <style>
-      :root { --fg: #111; --muted: #555; --bg: #fff; --accent: #0b5; --accent-ink: #fff; }
-      html, body { margin: 0; padding: 0; font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--fg); background: var(--bg); }
-      a { color: inherit; }
-      .wrap { max-width: 1000px; margin: 0 auto; padding: 32px 20px 60px; }
-      header { border-bottom: 1px solid #eee; }
-      nav { display: flex; gap: 18px; align-items: center; padding: 14px 0; }
-      nav a { text-decoration: none; color: var(--muted); padding: 6px 10px; border-radius: 6px; }
-      nav a.active, nav a:hover { color: var(--fg); background: #f4f4f4; }
-      h1 { font-size: 2rem; margin: 12px 0 8px; }
-      h2 { font-size: 1.25rem; margin-top: 28px; }
-      p { margin: 10px 0; }
-      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #f7f7f7; border-radius: 6px; }
-      code { padding: 2px 6px; }
-      pre { padding: 14px; overflow: auto; }
-      .muted { color: var(--muted); }
-      .cta { display: inline-block; margin-top: 12px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; border-radius: 6px; }
-      .card { border: 1px solid #eaeaea; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,0.02); margin-top: 8px; }
-      .tabbar { display: flex; gap: 0; align-items: stretch; background: #f4f4f4; border-bottom: 1px solid #eaeaea; }
-      .tabbar button { flex: 1; border: 0; background: transparent; padding: 14px 16px; font-size: 15px; font-weight: 600; cursor: pointer; color: var(--muted); }
-      .tabbar button:first-child { border-right: 1px solid #eaeaea; }
-      .tabbar button.active { background: #fff; color: var(--fg); }
-      .card-body { padding: 18px; }
-      .section { display: none; }
-      .section.active { display: block; }
-      footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
-      ul.checklist { margin: 8px 0 0; padding-left: 18px; }
-    </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script defer>document.addEventListener('DOMContentLoaded',function(){ if(window.hljs){ hljs.highlightAll(); } });</script>
-  </head>
-  <body>
-    <header>
-      <div class="wrap">
-        <nav>
-          <a class="" href="./">Home</a>
-          <a class="" href="./config.html">Config</a>
-          <a class="active" href="./explained.html">Explained</a>
-          <a class="" href="./about.html">About</a>
-        </nav>
-      </div>
-    </header>
-    <main class="wrap">
+{% extends "base.html.j2" %}
+{% set title = "Explained — how mel works" %}
+{% set active = 'explained' %}
+
+{% block content %}
   <h1>How mel works</h1>
   <p>No good abstraction should be without a full explanation of what has been abstracted. If you're an engineer or AI trying to figure your way out of some confusing scenario, hopefully this information can help:</p>
 
@@ -130,7 +85,6 @@ git push --force origin &lt;your-branch&gt;</code></pre>
 
   <h2 id="noninteractive">non‑interactive mode</h2>
   <p>Set <code>MEL_YES=1</code> or pass <code>--yes</code> to auto‑confirm prompts. Affects publishing confirmation and file‑add confirmation when <a href="./config.html#require_add_confirmation">require_add_confirmation</a> is enabled.</p>
-    </main>
-  </body>
-  </html>
+{% endblock %}
+
 
