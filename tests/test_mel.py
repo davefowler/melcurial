@@ -207,7 +207,7 @@ def test_open_runs_without_engineer_mode(tmp_path, monkeypatch):
     opened = {"url": None}
     monkeypatch.setattr(mel, "open_url", lambda url: opened.update({"url": url}))
 
-    mel.cmd_open("repo")
+    mel.cmd_open()
     assert opened["url"] == "https://github.com/owner/repo"
 
 

@@ -25,10 +25,13 @@ def build() -> int:
         lstrip_blocks=True,
     )
 
+    # Convert < and > to HTML entities for web display
+    help_advanced_html = mel.HELP_ADVANCED.replace("<", "&lt;").replace(">", "&gt;")
+    
     shared: Dict[str, Any] = {
         "HELP_HEADER": mel.HELP_HEADER,
         "HELP_BASIC": mel.HELP_BASIC,
-        "HELP_ADVANCED": mel.HELP_ADVANCED,
+        "HELP_ADVANCED": help_advanced_html,
         "HELP_FOOTER": mel.HELP_FOOTER,
     }
 
