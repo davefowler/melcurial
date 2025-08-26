@@ -40,6 +40,10 @@ HELP_FOOTER = """
   
 Docs: https://davefowler.github.io/melcurial/
 GitHub: https://github.com/davefowler/melcurial
+
+Tip: hide underlying git commands (default). To show them, set
+  - .mel/config.json → { "print_commands": true }
+  - or environment   → MEL_VERBOSE=1
 """
 
 
@@ -50,12 +54,17 @@ CONFIG_FILENAME = "config.json"
 # CLI version. When packaged, keep in sync with pyproject.toml.
 VERSION = "0.1.0"
 
+# Controls whether shell commands are echoed ("→ ...").
+# Default: disabled; can be enabled via MEL_VERBOSE=1 or config print_commands=true
+PRINT_CMDS = (os.environ.get("MEL_VERBOSE") == "1")
+
 def run(cmd, check=True, cwd=None, env=None):
     if isinstance(cmd, str):
         shell = True
     else:
         shell = False
-    print(f"→ {' '.join(cmd) if isinstance(cmd,list) else cmd}")
+    if PRINT_CMDS:
+        print(f"→ {' '.join(cmd) if isinstance(cmd,list) else cmd}")
     merged_env = os.environ.copy()
     if env:
         merged_env.update({str(k): str(v) for k, v in env.items()})
@@ -202,6 +211,13 @@ def get_cfg(root):
     # contributor_mode controls help visibility; only configurable via .mel/config.json
     if "contributor_mode" not in cfg:
         cfg["contributor_mode"] = "basic"
+    # Update command printing preference (env overrides config)
+    try:
+        global PRINT_CMDS
+        cfg_print = bool(cfg.get("print_commands", False))
+        PRINT_CMDS = (os.environ.get("MEL_VERBOSE") == "1") or cfg_print
+    except Exception:
+        pass
     return cfg
 
 def sanitize_branch_name(raw_name):
@@ -796,9 +812,12 @@ def cmd_help():
         if configured:
             for k, v in configured.items():
                 if isinstance(v, str):
-                    scripts_section += f"  mel {k}        {v}\n"
+                    display = v
                 elif isinstance(v, dict):
-                    scripts_section += f"  mel {k}        {v.get('cmd','')}\n"
+                    display = v.get("description") or v.get("cmd", "")
+                else:
+                    display = ""
+                scripts_section += f"  mel {k}        {display}\n"
         if package:
             for k, v in sorted(package.items()):
                 scripts_section += f"  mel {k}        {v}\n"
@@ -837,6 +856,10 @@ def main():
     elif cmd in ("--version", "-v"):
         cmd_version()
     else:
+        # Prevent unknown flags from being treated as script names
+        if cmd.startswith("-"):
+            print(f"✖ Unknown flag: {cmd}\nUse 'mel --help' for usage.")
+            sys.exit(1)
         # Check for configured scripts BEFORE built-ins so users can override commands
         try:
             root = repo_root()
