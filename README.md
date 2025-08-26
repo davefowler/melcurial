@@ -1,136 +1,161 @@
-## mel — a version control helper for non‑engineers
+# mel — friendly git abstraction for non‑engineers
 
-mel is a single‑file CLI that wraps a few safe Git workflows in friendly commands. It was originally built to help a marketing teammate (Mel!) manage a static site without learning Git internals.
+Many non-engineers have contributions for codebases (static sites, docs, design tweaks, image swaps, etc.) and the learning curve on git is steep.
 
-### Highlights
-- **start**: create or reset your personal workspace branch (defaults to your name). Mel sanitizes it into a safe branch name.
-- **save**: stage, commit, rebase on latest main, and push your branch.
-- **publish**: fast‑forward merge your branch into main, push, and rebase your branch back onto main. Teams can run tests via `pre_publish` hooks.
-- **reset**: hard‑reset your workspace branch back to main's tip and force‑push.
-- **sync**: one‑shot “save/stash, update with main via rebase or merge, push”.
-- **update**: alias of `pull`; in docs for non‑engineers we recommend `update` over `pull`.
-- **open**: open the repo, current branch or PR in your remote.
-- **diff**: quick diff stats of staged/unstaged changes.
-- **status**: show mel config, current branch info, ahead/behind counts, dirty files, and last commit, plus `git status -sb`.
-- **pull**: update main or fast‑forward merge latest main into your current branch, with an interactive prompt to handle uncommitted changes.
-- **scripts**: define custom scripts in `.mel/config.json` and run them directly with `mel <name>`; when enabled, package scripts can also be invoked the same way.
+`mel` is a simplification of a common git flow that makes versioned collaboration more approachable for those non-engineer contributors.
 
-### Development
+**Mission: enable non-engineers to contribute!**
 
-This project uses mel for version control. Use `mel start`, `mel sync`, `mel publish` etc. instead of raw git commands.
+## Install
 
-## Installation
+**macOS/Linux (no sudo).** On macOS installs to `/opt/homebrew/bin` or `/usr/local/bin` when writable; otherwise to `~/.local/bin`.
 
-Quick install (macOS/Linux):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash
 ```
 
-Notes:
-- On macOS, prefers installing to `/opt/homebrew/bin` if writable; otherwise `/usr/local/bin`; if neither is writable, falls back to `~/.local/bin`.
-- If the chosen directory is not on your PATH, the script prints a snippet to add.
-- Requires `curl` and `python3`.
- - To automatically add the install directory to your PATH, set `MEL_ADD_TO_PATH=1` when running the installer. Example:
-   - `curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | MEL_ADD_TO_PATH=1 bash`
- - To install to a custom directory, pass it as the first argument to the installer. Example:
-   - `curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash -s -- "$HOME/bin"`
+## Usage
 
-Install with pipx (recommended for Python users):
+### For non-engineers
+
+Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.
+
+```bash
+mel save "message"  # saves (optionally using your message), updates with main, and pushes
+mel status          # shows what's going on
+mel reset           # reset your workspace to the latest main (clean slate)
+mel publish         # runs checks and ships your changes to main
+```
+
+**Tips:**
+- If mel asks what to do with local changes, choose Save or Stash.
+- If mel asks to confirm adding files, review the list and type `y` to continue.
+- If mel offers to open a pull request, say yes and follow the link.
+
+### For engineers
+
+`mel` is also a great tool for engineers who want a smooth, quick workflow. Toggle to advanced mode with `mel mode advanced`.
+
+```bash
+mel save "message"  # commit-all (use message if provided) → rebase onto main → push
+mel update          # get latest changes from main
+mel status          # show ahead/behind, dirty files, last commit + git status
+mel publish         # FF merge to main → push → rebase branch
+mel diff            # show staged/unstaged diff stats
+mel open repo       # open remote repo page in your browser
+mel open branch     # open current branch page in your browser
+mel open pr         # open compare PR URL (GitHub) in your browser
+mel reset           # hard reset workspace branch to latest main and force‑push
+mel <name>          # run configured or package script; supports `--` for extra args
+```
+
+## How it works
+
+`mel` is just a wrapper around git. It keeps each person working in their own branch, and automatically pulling in changes from the main branch. If at any point someone gets stuck you can revert to directly using git.
+
+## Team setup
+
+`mel` can be tailored to your team's specifics through a `.mel/config_template.json` file. You can add custom scripts, change merge behavior, auto import scripts from packages and more.
+
+For a full description checkout the [configuration documentation](docs/config.html).
+
+## Configuration
+
+mel reads `.mel/config.json` at the repository root. If it's missing, mel will create the `.mel` folder as needed.
+
+### Key settings
+
+- **`main`**: Name of your default branch (auto-detected as `main` or `master`)
+- **`update_strategy`**: `rebase` (default) or `merge` for updates
+- **`scripts`**: Custom commands callable via `mel <name>`
+- **`allow_package_scripts`**: If true, fall back to package manager scripts
+- **`open_pr_on_sync`**: Open PR URL after `mel sync` (GitHub)
+- **`contributor_mode`**: `basic` (default) or `advanced` help text
+- **`require_add_confirmation`**: Show file list before adding (default: true)
+- **`require_publish_confirmation`**: Confirm before publishing (default: true)
+
+### Quick mode switching
+
+Use `mel mode basic` or `mel mode advanced` to change help text without editing config.
+
+### Example config
+
+```json
+{
+  "main": "main",
+  "update_strategy": "rebase",
+  "open_pr_on_sync": true,
+  "scripts": {
+    "test": "pytest -q --disable-warnings",
+    "build": "npm run build -s"
+  },
+  "allow_package_scripts": true,
+  "contributor_mode": "advanced"
+}
+```
+
+## Development
+
+This project uses mel for version control. Use `mel save`, `mel sync`, `mel publish` etc. instead of raw git commands.
+
+## Installation options
+
+### Quick install (recommended)
+```bash
+curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/install.sh | bash
+```
+
+### With pipx (for Python users)
 ```bash
 pipx install git+https://github.com/davefowler/melcurial.git
 ```
 
-Install with pip (user site):
+### With pip (user site)
 ```bash
 python3 -m pip install --user git+https://github.com/davefowler/melcurial.git
 ```
 
-Manual install:
+### Manual install
 ```bash
 curl -fsSL https://raw.githubusercontent.com/davefowler/melcurial/main/mel -o /usr/local/bin/mel
 chmod +x /usr/local/bin/mel
 ```
 
-### Quick start
+## Quick start
+
 ```bash
 # From an existing Git repo
-mel start my-landing-update     # or just: mel start (will prompt for your name)
+mel save "my first change"     # creates workspace branch if needed
 # edit files...
-mel sync                        # save/stash, update with main, push
 mel status                      # view state at a glance
-mel publish                     # fast‑forward merge into main, push
+mel publish                     # ship your changes to main
 ```
 
-### Commands
-- **start [name]**: Create or reset your workspace branch from the latest main and push with upstream. If omitted, mel prompts for your name.
-- **save "message"**: Commit all changes (uses your message if provided; otherwise a timestamped default), fetch, rebase on main, and push.
-- **sync**: Save or stash as needed, update with latest main using the configured strategy (defaults to rebase), and push. Optionally opens a PR.
-- **publish**: Confirm, run any configured pre‑publish hooks, update local main, fast‑forward merge your branch into main, push main, then rebase your branch on main and push again.
-- **reset**: For workspace branches only. Hard‑reset to latest main and force‑push.
-- **update | pull**: Update main or update your workspace branch with latest main using the configured strategy.
-- **diff**: Show staged/unstaged diff stats.
-- **open [repo|branch|pr]**: Open your remote in the browser.
-- **status**: Prints summary JSON including `main`, `user_branch`, `current_branch`, ahead/behind counts, dirty file count, last commit, then shows `git status -sb`.
-- **pull**: If on `main`, `git pull --ff-only`. If on your workspace branch, fast‑forward merge latest main into the branch. If you have local changes, mel offers: save first, stash+drop, or cancel.
- 
+## Non-interactive mode
 
-### Configuration (for engineers)
-mel stores configuration in `.mel/config.json` at your repo root. If it doesn’t exist, it’s created when you run mel.
+For automation, set `MEL_YES=1` (or pass `--yes`) to answer "yes" to confirmations and choose safe defaults.
 
-Fields:
-- `main` (string): Your default branch name. Auto‑detected between `main` or `master` if not set.
-- `user_branch` (string): The last branch created via `mel start`.
-- `scripts` (object): Named commands callable via `mel <name>`.
-- `update_strategy` (string): `rebase` (default) or `merge` for `pull/update/sync`.
-- `open_pr_on_sync` (boolean): If true, open a PR URL after `mel sync` (GitHub remotes supported).
-- `merge_message` (string): Template for merge commits. Supports `{branch}`, `{main}`, `{author}`, `{datetime}`.
-- `merge_message_after_sync` (string): Optional override template used for merges run by `sync`.
-- `require_publish_confirmation` (boolean): If false, skip the confirmation prompt in `mel publish` (default: true).
+## Safety features
 
-Example `.mel/config.json`:
-```json
-{
-  "main": "main",
-  "update_strategy": "rebase",
-  "scripts": {
-    "test": "pytest -q --disable-warnings"
-  },
-  "allow_package_scripts": true,
-  "open_pr_on_sync": true,
-  "merge_message": "Merge {branch} into {main} by {author} @ {datetime}",
-  "merge_message_after_sync": "Merge {branch} into {main}"
-}
-```
+- `save` is disabled on main to prevent accidental commits
+- `publish` uses fast-forward merges only
+- `reset` refuses to run on main
+- File confirmation before adding (configurable)
+- Publish confirmation (configurable)
 
-Notes:
-- If `allow_package_scripts` is true, unknown `mel <name>` calls fall back to your package manager's scripts.
+## Documentation
 
-### Safety and behavior
-- `start` creates or resets the target branch based on the latest `main` (local or `origin/main` if available) and sets upstream.
-- `save` is disabled on `main` to prevent accidental commits there.
-- `publish` uses fast‑forward merges only; if that’s not possible, it aborts with guidance.
-- `reset` refuses to run on `main`.
+- **[Home](docs/index.html)** - Overview and quick start
+- **[Configuration](docs/config.html)** - Full config options and examples
+- **[Explained](docs/explained.html)** - Detailed command explanations
+- **[About](docs/about.html)** - The story behind mel
 
-### Troubleshooting
-- “No 'origin' remote found. Skipping fetch.” → mel works without a remote, but some features (push, pull) require `origin`.
-- Ahead/behind shows “?” → likely no upstream is set. `mel start` sets it automatically; otherwise run `git push -u origin HEAD`.
+## Contribute
 
-### Ideas to extend
-- Pre/Post hooks: `pre_save`, `post_save`, `pre_publish`, `post_publish` commands in config.
-- PR helper: `mel pr` (covered by `mel open pr`).
-- Dry‑run mode: `MEL_DRY_RUN=1` to print commands without executing.
-- Auto‑stash/restore option on `pull` instead of drop.
-- Protected branches list in config.
+Right now we need users and feedback! If you have requests, ideas, or contributions, please file an [issue](https://github.com/davefowler/melcurial/issues) or [PR](https://github.com/davefowler/melcurial/pulls) on [GitHub](https://github.com/davefowler/melcurial).
 
-### FAQ
+## License
 
-- **What's the story of melcurial?**
-  - See the About page: [About melcurial](docs/about.html).
-
-- **Does melcurial work with Mercurial?**
-  - Not yet, but it is planned. See the plan: [Mercurial (Hg) Support Plan](mercurial_plan.md).
-
-### License
 Use at your own risk. Adapt freely.
 
 
