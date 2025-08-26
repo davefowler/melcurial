@@ -13,6 +13,7 @@
     <li><a href="#scripts">scripts</a> and <a href="#allow_package_scripts">allow_package_scripts</a></li>
     <li><a href="#open_pr_on_sync">open_pr_on_sync</a>, <a href="#merge_message">merge_message</a>, <a href="#merge_message_after_sync">merge_message_after_sync</a></li>
     <li><a href="#require_publish_confirmation">require_publish_confirmation</a>, <a href="#require_add_confirmation">require_add_confirmation</a></li>
+    <li><a href="#contributor_mode">contributor_mode</a></li>
     <li><a href="#hooks">hooks</a></li>
     <li><a href="#template">Template</a></li>
   </ul>
@@ -63,6 +64,15 @@
 
   <h2 id="require_add_confirmation">require_add_confirmation</h2>
   <p>If true (default), show a list of files and require confirmation before adding them to a commit.</p>
+
+  <h2 id="contributor_mode">contributor_mode</h2>
+  <p>Controls the help text shown by <code>mel help</code>:</p>
+  <ul>
+    <li><code>"basic"</code> (default): Shows only basic commands for non-engineers</li>
+    <li><code>"advanced"</code>: Shows both basic and advanced commands for engineers</li>
+  </ul>
+  <p><strong>Quick switch</strong>: Use <code>mel mode basic</code> or <code>mel mode advanced</code> to change modes without editing the config file.</p>
+  <pre><code class="language-json">{ "contributor_mode": "advanced" }</code></pre>
 
   <h2 id="hooks">hooks</h2>
   <p>Run commands before/after key operations. Each entry can be a string or an object <code>{ cmd, cwd?, env? }</code>.</p>

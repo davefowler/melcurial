@@ -24,19 +24,13 @@
       <button id="tab-eng" role="tab" aria-controls="panel-eng" aria-selected="false">for engineers</button>
     </div>
     <div class="card-body">
-      <section id="panel-users" class="section active" role="tabpanel" aria-labelledby="tab-users">
+      <section id="panel-users" class="section active" role="tsabpanel" aria-labelledby="tab-users">
         <p>Use these commands in your project folder. Plain language, safe defaults, and helpful prompts.</p>
         <pre><code class="language-bash">{{ HELP_BASIC }}</code></pre>
-        <p class="muted">Tips:</p>
-        <ul class="checklist">
-          <li>If mel asks what to do with local changes, choose Save or Stash.</li>
-          <li>If mel asks to confirm adding files, review the list and type <code>y</code> to continue.</li>
-          <li>If mel offers to open a pull request, say yes and follow the link.</li>
-        </ul>
       </section>
 
       <section id="panel-eng" class="section" role="tabpanel" aria-labelledby="tab-eng">
-        <p>Engineer‑oriented descriptions and full list:</p>
+        <p><code>mel</code> is also a great tool for engineers who want a smooth, quick workflow.  Toggle to advanced mode with <code>mel mode advanced</code>.</p>
         <pre><code class="language-bash">{{ HELP_ADVANCED }}</code></pre>
         <p class="muted">See <a href="./config.html">Config</a> for scripts, hooks, update strategy, and non‑interactive mode.</p>
       </section>

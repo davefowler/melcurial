@@ -31,6 +31,24 @@
       .section.active { display: block; }
       footer { margin-top: 40px; font-size: 14px; color: var(--muted); }
       ul.checklist { margin: 8px 0 0; padding-left: 18px; }
+      
+      /* Copy button styles */
+      .code-wrapper { position: relative; }
+      .copy-btn { 
+        position: absolute; 
+        top: 8px; 
+        right: 8px; 
+        background: rgba(255,255,255,0.9); 
+        border: 1px solid #ddd; 
+        border-radius: 4px; 
+        padding: 4px 8px; 
+        font-size: 12px; 
+        cursor: pointer; 
+        opacity: 0; 
+        transition: opacity 0.2s; 
+      }
+      .code-wrapper:hover .copy-btn { opacity: 1; }
+      .copy-btn.copied { background: var(--accent); color: var(--accent-ink); }
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>

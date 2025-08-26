@@ -25,6 +25,7 @@ HELP_ADVANCED = """Advanced commands:
   mel pr              # go to the page to make a new PR
   mel clear           # stash your uncommitted changes (worktree + untracked)
   mel reset           # restart your branch from the latest main (force-push)
+  mel mode <mode>     # switch between "basic" and "advanced" help text
   mel <name>          # run configured or package script; supports `--` for extra args
 """
 
@@ -754,6 +755,25 @@ def cmd_sync(non_interactive=False):
             print("! open_pr_on_sync configured, but could not determine PR URL for this remote.")
     print("✓ Sync complete.")
 
+def cmd_mode(mode=None):
+    root = repo_root()
+    cfg = get_cfg(root)
+    
+    if not mode:
+        current_mode = cfg.get("contributor_mode", "basic")
+        print(f"Current mode: {current_mode}")
+        print("Use 'mel mode basic' or 'mel mode advanced' to change")
+        return
+    
+    mode = mode.lower()
+    if mode not in ["basic", "advanced"]:
+        print("✖ Mode must be 'basic' or 'advanced'")
+        sys.exit(1)
+    
+    cfg["contributor_mode"] = mode
+    save_config(root, cfg)
+    print(f"✓ Switched to {mode} mode")
+
 def cmd_help():
     root = repo_root()
     cfg = get_cfg(root)
@@ -870,6 +890,10 @@ def main():
     elif cmd == "diff":
         auto_init_if_needed()
         cmd_diff()
+    elif cmd == "mode":
+        auto_init_if_needed()
+        mode_arg = args[1] if len(args) >= 2 else None
+        cmd_mode(mode_arg)
     elif cmd == "scripts":
         auto_init_if_needed()
         root = repo_root()

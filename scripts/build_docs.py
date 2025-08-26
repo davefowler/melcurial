@@ -48,6 +48,16 @@ def build() -> int:
         (docs_dir / out_name).write_text(html, encoding="utf-8")
         print(f"✓ Built {out_name}")
 
+    # Copy assets directory to docs
+    assets_src = templates_dir / "assets"
+    assets_dst = docs_dir / "assets"
+    if assets_src.exists():
+        import shutil
+        if assets_dst.exists():
+            shutil.rmtree(assets_dst)
+        shutil.copytree(assets_src, assets_dst)
+        print(f"✓ Copied assets directory")
+
     return 0
 
 
