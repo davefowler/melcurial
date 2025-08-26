@@ -3,6 +3,8 @@ from importlib.machinery import SourceFileLoader
 import pathlib
 import types
 import pytest
+import os
+import json
 
 
 def load_mel_module() -> types.ModuleType:
@@ -189,20 +191,7 @@ def test_import_repo_template_creates_config_and_gitignore(tmp_path, monkeypatch
     assert ".mel/" in (tmp_path / ".gitignore").read_text()
 
 
-def test_import_global_template_when_no_repo_template(tmp_path, monkeypatch):
-    mel = load_mel_module()
-    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
 
-    # Simulate a fake HOME with a template
-    fake_home = tmp_path / "fakehome"
-    (fake_home / ".mel").mkdir(parents=True)
-    (fake_home / ".mel" / "config_template.json").write_text('{"scripts": {"test": "pytest -q"}}')
-
-    original_expanduser = mel.os.path.expanduser
-    monkeypatch.setattr(mel.os.path, "expanduser", lambda p: str(fake_home) if p == "~" else original_expanduser(p))
-
-    cfg = mel.get_cfg(tmp_path.as_posix())
-    assert cfg.get("scripts", {}).get("test") == "pytest -q"
 
 
 def test_open_runs_without_engineer_mode(tmp_path, monkeypatch):
@@ -411,3 +400,57 @@ def test_repo_root_is_used_even_when_called_in_subdir(tmp_path, monkeypatch):
     root = mel.repo_root()
     assert root == tmp_path.as_posix()
     assert any(isinstance(c, list) and c[:3] == ["git", "rev-parse", "--show-toplevel"] for c in calls)
+
+
+def test_uses_repo_root_for_config_and_template(tmp_path, monkeypatch):
+    """Test that mel finds repo root and uses config template from there, 
+    and creates config in repo root even when called from subdirectory."""
+    mel = load_mel_module()
+    
+    # Create repo structure with template in repo root
+    repo_root = tmp_path / "my-repo"
+    repo_root.mkdir()
+    subdir = repo_root / "subdir"
+    subdir.mkdir()
+    
+    # Create template in repo root
+    mel_dir = repo_root / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config_template.json").write_text('{"scripts": {"test": "echo from repo root"}}')
+    
+    # Mock git to return the repo root
+    monkeypatch.setattr(mel, "repo_root", lambda: str(repo_root))
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    def fake_run(cmd, check=True, cwd=None, env=None):  # type: ignore[unused-argument]
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Simulate running mel from subdirectory
+    # Change working directory to subdir
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(str(subdir))
+        
+        # Call get_cfg which should find the template in repo root
+        cfg = mel.get_cfg(str(repo_root))
+        
+        # Verify template was used
+        assert cfg.get("scripts", {}).get("test") == "echo from repo root"
+        
+        # Verify config was created in repo root, not subdir
+        repo_config_path = repo_root / ".mel" / "config.json"
+        subdir_config_path = subdir / ".mel" / "config.json"
+        
+        assert repo_config_path.exists(), "Config should be created in repo root"
+        assert not subdir_config_path.exists(), "Config should not be created in subdirectory"
+        
+        # Verify config content
+        with open(repo_config_path, "r") as f:
+            config_content = json.load(f)
+        assert config_content.get("scripts", {}).get("test") == "echo from repo root"
+        
+    finally:
+        os.chdir(original_cwd)

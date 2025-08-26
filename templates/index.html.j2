@@ -43,8 +43,13 @@
     </div>
   </div>
 
+  <h2>How it works</h2>
+  <p><code>mel</code> is just a wrapper around git.  It keeps each person working in their own branch, and automatically pulling in changes from the main branch. If at any point someone gets stuck you can revert to directly using git.  We have <a href="./docs/explained.html">full documentation explaining each abstracted command</a>.</p>
+
   <h2>Team setup</h2>
-  <p>To tailor mel for your team (tests, scripts, update behavior), visit the <a href="./config.html">Configuration</a> page.</p>
+  <p><code>mel</code> can be tailored to your team's specifics through a <code>.mel/config_template.json</code> file.  You can add custom scripts, change merge behavior, auto import scripts from packages and more.  
+  
+  For a full description checkout the <a href="./config.html">configuration documentation</a>.</p>
 
   <footer>
     <p class="muted">Built for Mel. Use at your own risk.</p>

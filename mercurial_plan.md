@@ -3,8 +3,9 @@
 ### Goals
 - **Abstract VCS operations** behind a common interface.
 - **Auto-detect** Git vs Mercurial with config/env overrides.
-- **Preserve UX** and semantics where possible; **degrade gracefully** when exact parity doesn’t exist.
+- **Preserve UX** and semantics where possible; **degrade gracefully** when exact parity doesn't exist.
 - **No behavior change for Git** users during the refactor.
+- **Update documentation** to reflect dual VCS support with tabbed interface.
 
 ### Detection Strategy
 - Order of precedence:
@@ -29,7 +30,7 @@ class VCSBackend(Protocol):
 
     def fetch(self) -> None: ...
     def checkout_workspace_on_base(self, workspace: str, base: str) -> None: ...
-    def ensure_tracked_and_commit_all(self, message: str) -> None: ...
+    def ensure_tracked_and_commit_all(self, message: str, root: str | None = None) -> None: ...
     def push_current(self, set_upstream: bool) -> None: ...
 
     def rebase_onto(self, base_ref: str) -> None: ...
@@ -44,12 +45,21 @@ class VCSBackend(Protocol):
     # Optional (if available):
     def stash_push(self, name: str) -> bool: ...
     def stash_pop(self) -> int: ...
+    
+    # New methods for current API:
+    def get_current_author(self) -> str: ...
+    def format_merge_message(self, cfg: dict, context: str, branch: str, main: str) -> str | None: ...
+    def ensure_mel_gitignored(self, root: str) -> None: ...
+    def sanitize_branch_name(self, raw_name: str) -> str: ...
+    def open_url(self, url: str) -> None: ...
 ```
 
 ### Git Backend Mapping (baseline)
 - Implement `GitVCS` using existing functions (no behavior change):
   - `repo_root`, `current_branch`→`current_workspace`, `guess_main_name`→`base_branch_name`.
   - `fetch_origin`→`fetch`, `push_current`, `rebase_onto`, `merge_ff_only`, `get_origin_web_url`→`remote_web_url`, etc.
+  - `commit_all`→`ensure_tracked_and_commit_all` (with root parameter for config access).
+  - `get_current_author`, `format_merge_message`, `ensure_mel_gitignored`, `sanitize_branch_name`, `open_url`.
 - All current commands call the backend instead of raw `git` commands.
 
 ### Mercurial Backend Design
@@ -80,7 +90,7 @@ Open operations:
 - opening PRs: initially Git-only; print helpful note under Hg.
 
 ### Command Behaviors (Git preserved; Hg specifics)
-- **start**
+- **start/b/branch**
   - Hg: pull, `update <default>`, create/force bookmark `<workspace>`, switch to it, push on first save.
 - **save**
   - Hg: `addremove`; commit; update via strategy:
@@ -98,6 +108,8 @@ Open operations:
   - Hg: offer save/shelve/cancel (hide shelve if unavailable); apply strategy like `save`.
 - **diff**
   - Hg: `hg diff --stat` (no staged vs unstaged separation).
+- **clear**
+  - Hg: `hg shelve -n <name>` if shelve extension available; else message about manual stashing.
 
 ### Config Surface
 - `.mel/config.json` additions:
@@ -106,6 +118,27 @@ Open operations:
   - `"main"`: respected for both; default `"main"` for Git, treated as `"default"` for Hg when absent.
   - Existing flags (e.g., `"update_strategy"`, `"require_add_confirmation"`, hooks) apply to both backends.
 - Env: `MEL_VCS` temporary override.
+
+### Documentation Updates Required
+
+#### Home Page (index.html)
+- Update the mission statement to mention both Git and Mercurial support
+- Add note about VCS auto-detection
+- Update installation instructions to mention Hg support
+- Consider adding a brief note about Hg-specific considerations
+
+#### Explained Page (explained.html) - Tabbed Interface
+- Add tabbed interface similar to index.html with "Git" and "Mercurial" tabs
+- Each code block should have tabs that switch between Git and Hg equivalent commands
+- All tabs on the page should be synchronized (single state for the entire page)
+- Default to Git tab (maintaining current behavior)
+- Add Hg-specific explanations where behavior differs
+- Include notes about Hg extensions (rebase, shelve) when relevant
+
+#### Config Page (config.html)
+- Add VCS-specific configuration options
+- Document Hg-specific settings like `hg_mode`
+- Update examples to show both Git and Hg contexts where relevant
 
 ### Implementation Steps (Milestones)
 1. **Introduce backend layer**
@@ -120,7 +153,12 @@ Open operations:
 5. **Finish UX polish**
    - Clear messaging when extensions (`rebase`, `shelve`) are missing.
    - URL opening support for common hosts.
-6. **Docs & tests**
+6. **Update documentation**
+   - Implement tabbed interface in explained.html
+   - Update home page to mention Hg support
+   - Update config documentation
+   - Add Hg-specific help text and examples
+7. **Docs & tests**
    - Update help/docs to describe Hg behavior and differences.
    - Parametrize tests by backend; run Hg tests conditionally when `hg` is available.
 
@@ -129,6 +167,7 @@ Open operations:
 - Mixed repos containing both `.git` and `.hg`: require explicit override or nearest marker heuristic.
 - Ahead/behind in Hg is approximate via incoming/outgoing counts.
 - No staging area in Hg: adapt `diff` and add/commit flows accordingly.
+- Hg bookmarks vs branches: need clear UX for users to understand the difference.
 
 ### Minimal Detection Snippet (conceptual)
 ```python
@@ -155,3 +194,5 @@ def detect_vcs(start: str) -> VCSBackend:
 ### Notes
 - Keep Git UX identical; Hg commands should feel equivalent but may print notes where behavior differs (e.g., no FF-only).
 - Start with a small PR refactor (backend layer + Git); follow with Hg in incremental PRs.
+- Documentation updates should be part of the implementation, not afterthoughts.
+- Consider Hg-specific help text that can be shown when Hg is detected.

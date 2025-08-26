@@ -259,15 +259,11 @@ def ensure_mel_gitignored(root):
     print("✓ Ensured .mel/ is ignored via .gitignore")
 
 def load_template_config(root):
-    # Repo-local templates
+    # Repo-local templates only
     candidates = [
         os.path.join(root, CONFIG_DIRNAME, "config_template.json"),
         os.path.join(root, CONFIG_DIRNAME, "config.template.json"),
     ]
-    # Global template
-    home = os.path.expanduser("~")
-    candidates.append(os.path.join(home, ".mel", "config_template.json"))
-    candidates.append(os.path.join(home, ".mel", "config.template.json"))
 
     for p in candidates:
         try:
