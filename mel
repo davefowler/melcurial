@@ -38,6 +38,7 @@ mel — a simpler git abstraction so non-engineers can contribute
 HELP_FOOTER = """
   
 Docs: https://davefowler.github.io/melcurial/
+GitHub: https://github.com/davefowler/melcurial
 """
 
 
