@@ -26,6 +26,7 @@ HELP_ADVANCED = """Advanced commands:
   mel clear           # stash your uncommitted changes (worktree + untracked)
   mel reset           # restart your branch from the latest main (force-push)
   mel mode <mode>     # switch between "basic" and "advanced" help text
+  mel --version|-v    # show CLI version and executable path
   mel <name>          # run configured or package script; supports `--` for extra args
 """
 
@@ -45,6 +46,9 @@ GitHub: https://github.com/davefowler/melcurial
 
 CONFIG_DIRNAME = ".mel"
 CONFIG_FILENAME = "config.json"
+
+# CLI version. When packaged, keep in sync with pyproject.toml.
+VERSION = "0.1.0"
 
 def run(cmd, check=True, cwd=None, env=None):
     if isinstance(cmd, str):
@@ -675,6 +679,11 @@ def cmd_pr():
     print(f"→ Opening PR: {url}")
     open_url(url)
 
+def cmd_version():
+    path = os.path.realpath(sys.argv[0])
+    print(f"mel {VERSION}")
+    print(f"path: {path}")
+
 def ensure_clean_or_handle(non_interactive=False):
     rc, out = run(["git", "status", "--porcelain"], check=False)
     if not out.strip():
@@ -825,6 +834,8 @@ def main():
     cmd = args[0]
     if cmd in ("help", "-h", "--help"):
         cmd_help()
+    elif cmd in ("--version", "-v"):
+        cmd_version()
     else:
         # Check for configured scripts BEFORE built-ins so users can override commands
         try:
