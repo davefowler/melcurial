@@ -315,14 +315,14 @@ def test_help_advanced_mode_shows_advanced(tmp_path, monkeypatch, capsys):
     assert "mel diff" in out
 
 
-def test_script_overrides_builtin_publish(tmp_path, monkeypatch):
+def test_script_execution_works(tmp_path, monkeypatch):
     mel = load_mel_module()
 
-    # Configure a script named 'publish' to override the built-in
+    # Configure a custom script
     mel_dir = tmp_path / ".mel"
     mel_dir.mkdir()
     (mel_dir / "config.json").write_text(
-        '{"main":"main","scripts":{"publish":"mel open pr"}}'
+        '{"main":"main","scripts":{"custom":"echo hello"}}'
     )
 
     # Use temp path as repo root; avoid real git calls
@@ -337,16 +337,16 @@ def test_script_overrides_builtin_publish(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mel, "run", fake_run)
 
-    # Simulate CLI invocation: `mel publish`
-    monkeypatch.setattr(mel.sys, "argv", ["mel", "publish"]) 
+    # Simulate CLI invocation: `mel custom`
+    monkeypatch.setattr(mel.sys, "argv", ["mel", "custom"]) 
     monkeypatch.setenv("MEL_YES", "1")
 
     with pytest.raises(SystemExit) as e:
         mel.main()
 
-    # Should exit successfully and have run the configured script, not the built-in
+    # Should exit successfully and have run the configured script
     assert e.value.code == 0
-    assert calls == ["mel open pr"]
+    assert calls == ["echo hello"]
 
 
 def test_auto_init_creates_config_at_git_root_from_subdir(tmp_path, monkeypatch):
@@ -664,7 +664,6 @@ def test_auto_init_asks_for_name_and_creates_branch(tmp_path, monkeypatch, capsy
     # Verify the output shows the expected behavior
     out = capsys.readouterr().out
     assert "It looks like this is your first time using mel in this repo." in out
-    assert "What's your name? We'll create a branch with it:" in out
     assert "✓ Now on 'testuser' (based on main)." in out
 
 

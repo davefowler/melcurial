@@ -1047,29 +1047,7 @@ def main():
         cmd_help()
     elif cmd in ("--version", "-v"):
         cmd_version()
-    else:
-        # Prevent unknown flags from being treated as script names
-        if cmd.startswith("-"):
-            print(f"✖ Unknown flag: {cmd}\nUse 'mel --help' for usage.")
-            sys.exit(1)
-        # Check for configured scripts BEFORE built-ins so users can override commands
-        try:
-            root = repo_root()
-            cfg = get_cfg(root)
-        except Exception:
-            cfg = {"scripts": {}, "allow_package_scripts": False}
-        configured_scripts = (cfg.get("scripts") or {})
-        if cmd in configured_scripts:
-            # Collect extra args (support both "-- args" and direct args)
-            if "--" in args:
-                idx = args.index("--")
-                extra = args[idx+1:]
-            else:
-                extra = args[1:]
-            rc = run_script_by_name(cfg, cmd, extra)
-            sys.exit(rc)
-    
-    if cmd == "save":
+    elif cmd == "save":
         auto_init_if_needed()
         msg = args[1] if len(args) >= 2 else None
         cmd_save(msg)
@@ -1128,12 +1106,29 @@ def main():
         cmd_upgrade()
     
     else:
-        # Fallback: treat unknown command as a script name
+        # Prevent unknown flags from being treated as script names
+        if cmd.startswith("-"):
+            print(f"✖ Unknown flag: {cmd}\nUse 'mel --help' for usage.")
+            sys.exit(1)
+        
+        # Check for configured scripts
         try:
             root = repo_root()
             cfg = get_cfg(root)
         except Exception:
             cfg = {"scripts": {}, "allow_package_scripts": False}
+        configured_scripts = (cfg.get("scripts") or {})
+        if cmd in configured_scripts:
+            # Collect extra args (support both "-- args" and direct args)
+            if "--" in args:
+                idx = args.index("--")
+                extra = args[idx+1:]
+            else:
+                extra = args[1:]
+            rc = run_script_by_name(cfg, cmd, extra)
+            sys.exit(rc)
+        
+        # Fallback: treat unknown command as a script name
         name = cmd
         # Collect extra args (support both "-- args" and direct args)
         extra = []
