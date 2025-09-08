@@ -5,6 +5,7 @@ import types
 import pytest
 import os
 import json
+import subprocess
 
 
 def load_mel_module() -> types.ModuleType:
@@ -55,9 +56,9 @@ def test_get_origin_web_url_parses_ssh_and_https(monkeypatch):
 def test_detect_package_manager(tmp_path, monkeypatch):
     mel = load_mel_module()
 
-    # Default when nothing present
+    # Default when nothing present - should return None
     monkeypatch.chdir(tmp_path)
-    assert mel.detect_package_manager(tmp_path.as_posix()) == "npm"
+    assert mel.detect_package_manager(tmp_path.as_posix()) is None
 
     # yarn
     (tmp_path / "yarn.lock").write_text("")
@@ -454,3 +455,363 @@ def test_uses_repo_root_for_config_and_template(tmp_path, monkeypatch):
         
     finally:
         os.chdir(original_cwd)
+
+
+def test_cmd_start_handles_uncommitted_changes(tmp_path, monkeypatch, capsys):
+    """Test that cmd_start properly handles uncommitted changes by offering options."""
+    mel = load_mel_module()
+    
+    # Set up a mock repo
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main"}')
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    # Mock git status to return uncommitted changes
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        if isinstance(cmd, list) and cmd[:2] == ["git", "status"] and "--porcelain" in cmd:
+            return 0, " M modified_file.txt\n?? new_file.txt\n"
+        elif isinstance(cmd, list) and cmd[:2] == ["git", "checkout"]:
+            # This should not be called if we handle uncommitted changes properly
+            raise subprocess.CalledProcessError(1, cmd, "error: Your local changes would be overwritten")
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Mock input to simulate user choosing to stash changes
+    import builtins as _builtins
+    monkeypatch.setattr(_builtins, "input", lambda prompt="": "2")
+    
+    # Mock the stash command and successful checkout after stashing
+    stash_calls = []
+    checkout_calls = []
+    def fake_run_with_stash(cmd, check=True, cwd=None, env=None):
+        if isinstance(cmd, list) and cmd[:2] == ["git", "stash"]:
+            stash_calls.append(cmd)
+            return 0, ""
+        elif isinstance(cmd, list) and cmd[:2] == ["git", "checkout"]:
+            checkout_calls.append(cmd)
+            return 0, ""
+        return fake_run(cmd, check, cwd, env)
+    
+    monkeypatch.setattr(mel, "run", fake_run_with_stash)
+    
+    # This should not raise an exception
+    mel.cmd_start("test-branch")
+    
+    # Verify that stash was called
+    assert len(stash_calls) > 0
+    assert any("stash" in " ".join(cmd) for cmd in stash_calls)
+    
+    # Verify that checkout was called after stashing
+    assert len(checkout_calls) > 0
+    assert any("checkout" in " ".join(cmd) for cmd in checkout_calls)
+    
+    # Verify the output shows the uncommitted changes
+    out = capsys.readouterr().out
+    assert "⚠️  You have uncommitted changes:" in out
+    assert "modified_file.txt" in out
+    assert "new_file.txt" in out
+    assert "Stashing changes..." in out
+    assert "✓ Changes stashed" in out
+
+
+def test_cmd_start_handles_uncommitted_changes_commit_option(tmp_path, monkeypatch, capsys):
+    """Test that cmd_start can commit changes when user chooses option 1."""
+    mel = load_mel_module()
+    
+    # Set up a mock repo
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main"}')
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    commit_calls = []
+    checkout_calls = []
+    
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        if isinstance(cmd, list) and cmd[:2] == ["git", "status"] and "--porcelain" in cmd:
+            return 0, " M modified_file.txt\n"
+        elif isinstance(cmd, list) and cmd[:2] == ["git", "add"]:
+            commit_calls.append(cmd)
+            return 0, ""
+        elif isinstance(cmd, list) and cmd[:2] == ["git", "commit"]:
+            commit_calls.append(cmd)
+            return 0, ""
+        elif isinstance(cmd, list) and cmd[:2] == ["git", "checkout"]:
+            checkout_calls.append(cmd)
+            return 0, ""
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Mock input to simulate user choosing to commit changes and confirming file addition
+    import builtins as _builtins
+    input_responses = ["1", "y"]  # First for branch creation choice, second for file confirmation
+    input_call_count = 0
+    def mock_input(prompt=""):
+        nonlocal input_call_count
+        response = input_responses[input_call_count]
+        input_call_count += 1
+        return response
+    monkeypatch.setattr(_builtins, "input", mock_input)
+    
+    # This should not raise an exception
+    mel.cmd_start("test-branch")
+    
+    # Verify that commit was called
+    assert len(commit_calls) > 0
+    assert any("add" in " ".join(cmd) for cmd in commit_calls)
+    assert any("commit" in " ".join(cmd) for cmd in commit_calls)
+    
+    # Verify checkout was called after committing
+    assert len(checkout_calls) > 0
+
+
+def test_cmd_start_handles_uncommitted_changes_cancel_option(tmp_path, monkeypatch, capsys):
+    """Test that cmd_start exits when user chooses to cancel."""
+    mel = load_mel_module()
+    
+    # Set up a mock repo
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main"}')
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        if isinstance(cmd, list) and cmd[:2] == ["git", "status"] and "--porcelain" in cmd:
+            return 0, " M modified_file.txt\n"
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Mock input to simulate user choosing to cancel
+    import builtins as _builtins
+    monkeypatch.setattr(_builtins, "input", lambda prompt="": "3")
+    
+    # This should exit with code 0
+    with pytest.raises(SystemExit) as e:
+        mel.cmd_start("test-branch")
+    assert e.value.code == 0
+    
+    # Verify the output shows cancellation message
+    out = capsys.readouterr().out
+    assert "Branch creation cancelled." in out
+
+
+def test_auto_init_if_needed_handles_git_errors_gracefully(tmp_path, monkeypatch, capsys):
+    """Test that auto_init_if_needed provides helpful error messages when git operations fail."""
+    mel = load_mel_module()
+    
+    # Set up a mock repo without config
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    # Mock input to provide a name
+    import builtins as _builtins
+    monkeypatch.setattr(_builtins, "input", lambda prompt="": "testuser")
+    
+    # Mock cmd_start to raise an exception
+    def fake_cmd_start(branch_name):
+        raise subprocess.CalledProcessError(1, ["git", "checkout"], "error: Your local changes would be overwritten")
+    
+    monkeypatch.setattr(mel, "cmd_start", fake_cmd_start)
+    
+    # This should exit with code 1 and show helpful error message
+    with pytest.raises(SystemExit) as e:
+        mel.auto_init_if_needed()
+    assert e.value.code == 1
+    
+    # Verify the output shows helpful error message
+    out = capsys.readouterr().out
+    assert "✖ Failed to initialize mel in this repository:" in out
+    assert "This usually happens when you have uncommitted changes." in out
+    assert "mel clear" in out
+
+
+def test_auto_init_asks_for_name_and_creates_branch(tmp_path, monkeypatch, capsys):
+    """Test that auto_init_if_needed asks for name and creates branch."""
+    mel = load_mel_module()
+    
+    # Set up a mock repo without config
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    # Mock input to provide a name
+    import builtins as _builtins
+    monkeypatch.setattr(_builtins, "input", lambda prompt="": "testuser")
+    
+    # Mock cmd_start to avoid actual git operations
+    def fake_cmd_start(branch_name):
+        print(f"✓ Now on '{branch_name}' (based on main).")
+    
+    monkeypatch.setattr(mel, "cmd_start", fake_cmd_start)
+    
+    # This should ask for input and create a branch
+    mel.auto_init_if_needed()
+    
+    # Verify the output shows the expected behavior
+    out = capsys.readouterr().out
+    assert "It looks like this is your first time using mel in this repo." in out
+    assert "What's your name? We'll create a branch with it:" in out
+    assert "✓ Now on 'testuser' (based on main)." in out
+
+
+def test_mel_works_without_package_json(tmp_path, monkeypatch, capsys):
+    """Test that mel works correctly in a Python project without package.json."""
+    mel = load_mel_module()
+    
+    # Set up a Python project (no package.json)
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main","allow_package_scripts":false}')
+    
+    # Create some Python files to make it look like a Python project
+    (tmp_path / "main.py").write_text("print('Hello, World!')")
+    (tmp_path / "requirements.txt").write_text("requests==2.28.0")
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    # Mock git commands
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Test help command - should not show package scripts
+    mel.cmd_help()
+    out = capsys.readouterr().out
+    assert "Package scripts" not in out
+    assert "package.json" not in out
+    
+    # Test scripts command - should not show package scripts
+    mel.cmd_scripts()
+    out = capsys.readouterr().out
+    assert "Package scripts" not in out
+    assert "package.json" not in out
+    assert "(no scripts available)" in out
+
+
+def test_mel_works_with_package_json_when_enabled(tmp_path, monkeypatch, capsys):
+    """Test that mel works with package.json when allow_package_scripts is enabled."""
+    mel = load_mel_module()
+    
+    # Set up a Node.js project with package.json
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main","allow_package_scripts":true}')
+    
+    # Create package.json
+    (tmp_path / "package.json").write_text('{"scripts":{"test":"jest","build":"webpack"}}')
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    monkeypatch.setattr(mel, "has_remote", lambda remote="origin": False)
+    
+    # Mock git commands
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    # Test help command - should show package scripts
+    mel.cmd_help()
+    out = capsys.readouterr().out
+    assert "mel test" in out
+    assert "mel build" in out
+    
+    # Test scripts command - should show package scripts
+    mel.cmd_scripts()
+    out = capsys.readouterr().out
+    assert "Package scripts (package.json)" in out
+    assert "test: jest" in out
+    assert "build: webpack" in out
+
+
+def test_detect_package_manager_returns_none_for_python_project(tmp_path, monkeypatch):
+    """Test that detect_package_manager returns None for Python projects."""
+    mel = load_mel_module()
+    
+    # Create a Python project (no package.json, yarn.lock, or pnpm-lock.yaml)
+    (tmp_path / "main.py").write_text("print('Hello, World!')")
+    (tmp_path / "requirements.txt").write_text("requests==2.28.0")
+    
+    result = mel.detect_package_manager(tmp_path.as_posix())
+    assert result is None
+
+
+def test_detect_package_manager_detects_npm(tmp_path, monkeypatch):
+    """Test that detect_package_manager detects npm when package.json exists."""
+    mel = load_mel_module()
+    
+    # Create a Node.js project
+    (tmp_path / "package.json").write_text('{"name":"test","scripts":{"test":"jest"}}')
+    
+    result = mel.detect_package_manager(tmp_path.as_posix())
+    assert result == "npm"
+
+
+def test_detect_package_manager_detects_yarn(tmp_path, monkeypatch):
+    """Test that detect_package_manager detects yarn when yarn.lock exists."""
+    mel = load_mel_module()
+    
+    # Create a yarn project
+    (tmp_path / "package.json").write_text('{"name":"test"}')
+    (tmp_path / "yarn.lock").write_text("# yarn lockfile v1")
+    
+    result = mel.detect_package_manager(tmp_path.as_posix())
+    assert result == "yarn"
+
+
+def test_detect_package_manager_detects_pnpm(tmp_path, monkeypatch):
+    """Test that detect_package_manager detects pnpm when pnpm-lock.yaml exists."""
+    mel = load_mel_module()
+    
+    # Create a pnpm project
+    (tmp_path / "package.json").write_text('{"name":"test"}')
+    (tmp_path / "pnpm-lock.yaml").write_text("lockfileVersion: '6.0'")
+    
+    result = mel.detect_package_manager(tmp_path.as_posix())
+    assert result == "pnpm"
+
+
+def test_run_script_by_name_handles_no_package_manager(tmp_path, monkeypatch):
+    """Test that run_script_by_name handles projects without package managers gracefully."""
+    mel = load_mel_module()
+    
+    # Set up a Python project without package.json
+    mel_dir = tmp_path / ".mel"
+    mel_dir.mkdir()
+    (mel_dir / "config.json").write_text('{"main":"main","allow_package_scripts":true}')
+    
+    (tmp_path / "main.py").write_text("print('Hello, World!')")
+    
+    monkeypatch.setattr(mel, "repo_root", lambda: tmp_path.as_posix())
+    monkeypatch.setattr(mel, "guess_main_name", lambda: "main")
+    
+    # Mock git commands
+    def fake_run(cmd, check=True, cwd=None, env=None):
+        return 0, ""
+    
+    monkeypatch.setattr(mel, "run", fake_run)
+    
+    cfg = mel.get_cfg(tmp_path.as_posix())
+    
+    # Try to run a script that doesn't exist in config or package.json
+    rc = mel.run_script_by_name(cfg, "nonexistent", [])
+    
+    # Should return 1 (script not found) since no package manager is detected
+    assert rc == 1
