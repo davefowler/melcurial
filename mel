@@ -12,7 +12,6 @@ HELP_BASIC = """Basic commands:
   mel status          # shows what changes you've made since saving
   mel publish         # save and publish your work to main
   mel reset           # ditch your changes and start over from main
-  mel upgrade         # update mel to the latest version
 
 Troubleshooting:
   If you get "uncommitted changes" errors, run 'mel clear' to stash them first.
@@ -756,8 +755,113 @@ def cmd_version():
     print(f"mel {VERSION}")
     print(f"path: {path}")
 
+def check_for_updates_silently():
+    """Check for updates silently and upgrade if available. Returns True if upgrade was performed."""
+    try:
+        # Get latest release info from GitHub API
+        url = "https://api.github.com/repos/davefowler/melcurial/releases/latest"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.loads(response.read().decode())
+            latest_version = data["tag_name"].lstrip("v")  # Remove 'v' prefix if present
+            download_url = None
+            
+            # Find the mel script in the release assets
+            for asset in data.get("assets", []):
+                if asset["name"] == "mel":
+                    download_url = asset["browser_download_url"]
+                    break
+            
+            if not download_url:
+                return False
+            
+            # Compare versions (simple string comparison should work for semantic versions)
+            if latest_version <= VERSION:
+                return False
+            
+            # Silent upgrade - no user interaction needed
+            current_path = os.path.realpath(sys.argv[0])
+            
+            # Create a temporary file
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.mel') as temp_file:
+                temp_path = temp_file.name
+            
+            try:
+                # Download the new version
+                with urllib.request.urlopen(download_url, timeout=10) as response:
+                    content = response.read().decode('utf-8')
+                    with open(temp_path, 'w') as f:
+                        f.write(content)
+                
+                # Make it executable
+                os.chmod(temp_path, 0o755)
+                
+                # Backup current version
+                backup_path = current_path + ".backup"
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                os.rename(current_path, backup_path)
+                
+                # Install new version
+                os.rename(temp_path, current_path)
+                
+                print(f"🔄 mel updated to v{latest_version} (was v{VERSION})")
+                return True
+                
+            except Exception as e:
+                # Restore backup if something went wrong
+                if os.path.exists(backup_path) and not os.path.exists(current_path):
+                    os.rename(backup_path, current_path)
+                return False
+            finally:
+                # Clean up temp file if it still exists
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    
+    except Exception:
+        # Silently fail - don't interrupt user's workflow
+        return False
+
+def should_check_for_updates():
+    """Determine if we should check for updates based on last check time and random chance."""
+    try:
+        # Check if we're in a git repo (don't auto-update in non-git contexts)
+        repo_root()
+    except:
+        return False
+    
+    # Get config to check last update time
+    try:
+        root = repo_root()
+        cfg = load_config(root)
+        last_check = cfg.get("last_update_check", 0)
+        current_time = datetime.datetime.now().timestamp()
+        
+        # Check every 24 hours (86400 seconds)
+        if current_time - last_check < 86400:
+            return False
+        
+        # Also add some randomness - only check 1 in 3 times even after 24 hours
+        import random
+        if random.randint(1, 3) != 1:
+            return False
+        
+        return True
+    except:
+        return False
+
+def update_last_check_time():
+    """Update the last check time in config."""
+    try:
+        root = repo_root()
+        cfg = load_config(root)
+        cfg["last_update_check"] = datetime.datetime.now().timestamp()
+        save_config(root, cfg)
+    except:
+        pass
+
 def cmd_upgrade():
-    """Upgrade mel to the latest version from GitHub releases."""
+    """Manual upgrade command - same as before but with user interaction."""
     print("🔍 Checking for latest version...")
     
     try:
@@ -1037,6 +1141,19 @@ def auto_init_if_needed():
         sys.exit(1)
 
 def main():
+    # Check for automatic updates (only for certain commands to avoid interrupting workflow)
+    if len(sys.argv) >= 2:
+        cmd = sys.argv[1]
+        # Only auto-update for common workflow commands, not for help/version/upgrade itself
+        if cmd in ["save", "status", "publish", "reset", "b", "branch", "clear", "pull", "update", "sync"]:
+            if should_check_for_updates():
+                update_last_check_time()  # Update timestamp even if check fails
+                if check_for_updates_silently():
+                    # If we upgraded, restart with the new version
+                    import subprocess
+                    subprocess.run([sys.executable] + sys.argv)
+                    sys.exit(0)
+    
     if len(sys.argv) < 2:
         cmd_help()
         sys.exit(0)
