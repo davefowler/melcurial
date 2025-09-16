@@ -14,29 +14,38 @@ This document provides the complete specification for building Mel as a plugin-b
 - **Auto-detection** - VCS detection and plugin installation
 
 ### File Structure
+Repo-local scope and global launcher:
 ```
-mel (minimal shell launcher - ~100 lines)
-└── .mel/
-    ├── config.json           # User config with plugin list
-    ├── config_template.json  # Template config (can be in version control)
-    └── plugins/              # All functionality as plugins
-        ├── core/             # Core Mel (help, version, plugin management)
-        │   ├── config.json   # Core commands
-        │   └── bin/          # Core scripts
-        ├── git/              # Git commands (auto-installed)
-        │   ├── config.json   # Git command definitions
-        │   └── bin/          # Git-specific scripts
-        ├── hg/               # Mercurial commands (auto-installed)
-        │   ├── config.json   # Mercurial command definitions
-        │   └── bin/          # Mercurial-specific scripts
-        ├── mel-assistant/    # AI assistance plugin
-        │   ├── config.json   # AI assistant configuration
-        │   ├── hooks/        # Hook scripts
-        │   └── bin/          # Executable commands
-        └── mel-docs/         # Documentation plugin
-            ├── config.json   # Documentation configuration
-            └── bin/          # Documentation scripts
+$PATH/mel                 # Global launcher (installed in PATH)
+
+/path/to/repo/            # Any VCS-backed project you run mel in
+└── .mel/                 # Repo-local state (created on first run in this repo)
+    ├── config.json           # User config with plugin list (repo-local)
+    ├── config_template.json  # Optional template (checked-in to the repo)
+    └── plugins/              # All functionality as plugins (repo-local)
+        ├── core/             # Core Mel (help, plugin management, flags)
+        │   ├── config.json
+        │   └── bin/
+        ├── git/
+        │   ├── config.json
+        │   └── bin/
+        ├── hg/
+        │   ├── config.json
+        │   └── bin/
+        ├── mel-assistant/
+        │   ├── config.json
+        │   ├── hooks/
+        │   └── bin/
+        └── mel-docs/
+            ├── config.json
+            └── bin/
 ```
+
+Notes:
+- The `.mel/` directory is created per-repo at the project root, not in the global install location. Plugins and configuration are always repo-local.
+- If a repo includes `.mel/config_template.json` in version control, it is used as defaults on first run, then merged into `.mel/config.json`.
+
+See also: `[MEL_PLUGIN_SYSTEM.md](./MEL_PLUGIN_SYSTEM.md)`, `[PURE_SHELL_ANALYSIS.md](./PURE_SHELL_ANALYSIS.md)`.
 
 ## Implementation Plan
 
@@ -52,7 +61,10 @@ mel (minimal shell launcher - ~100 lines)
 
 #### Files to Create:
 ```
-mel (executable shell script)
+# Installed globally (via installer):
+mel                       # Executable shell script in PATH
+
+# Created per-repo on first run:
 .mel/
 ├── config.json (initial)
 └── plugins/
@@ -60,15 +72,16 @@ mel (executable shell script)
         ├── config.json
         └── bin/
             ├── help.sh
-            ├── version.sh
-            └── plugin.sh
+            ├── plugin.sh
 ```
+See also: `[MEL_PLUGIN_SYSTEM.md](./MEL_PLUGIN_SYSTEM.md)` for plugin layout; `[PARAMETER_STANDARDS_AND_DOCS.md](./PARAMETER_STANDARDS_AND_DOCS.md)` for help/docs expectations.
 
-#### Core Commands:
-- `mel help` - Show available commands
-- `mel version` - Show version information
+#### Core Commands and Flags:
+- `mel help` - Show available commands (split into basic/advanced sections; `--advanced` shows advanced)
 - `mel plugin` - Plugin management
-- `mel ignoremel` - Add .mel to gitignore (hidden command)
+- `mel ignoremel` - Add `.mel` to VCS ignore (hidden command)
+- Flags: `mel -v` / `mel --version` print version; there is no `mel version` subcommand.
+See also: `[PARAMETER_STANDARDS_AND_DOCS.md](./PARAMETER_STANDARDS_AND_DOCS.md)` for help-mode guidance.
 
 ### Phase 2: VCS Plugins (Week 3-4)
 **Goal**: Git and Mercurial plugins with full command sets
@@ -143,9 +156,15 @@ mel (executable shell script)
 
 set -euo pipefail
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MEL_DIR="$SCRIPT_DIR/.mel"
+# Determine project root (prefer VCS root; fallback to current directory)
+if command -v git >/dev/null 2>&1 && git rev-parse --show-toplevel >/dev/null 2>&1; then
+    PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+elif command -v hg >/dev/null 2>&1 && hg root >/dev/null 2>&1; then
+    PROJECT_ROOT="$(hg root)"
+else
+    PROJECT_ROOT="$PWD"
+fi
+MEL_DIR="$PROJECT_ROOT/.mel"
 
 # Initialize Mel if needed
 init_mel() {
@@ -182,8 +201,12 @@ main() {
     local config
     config=$(load_merged_config)
     
-    # Parse arguments
-    local command="$1"
+    # Parse arguments (support -v/--version flags)
+    if [[ "${1:-}" == "-v" || "${1:-}" == "--version" ]]; then
+        echo "$(mel --internal-version)"
+        exit 0
+    fi
+    local command="${1:-help}"
     shift || true
     
     # Execute command
@@ -307,6 +330,8 @@ main "$@"
 }
 ```
 
+See also: `[MEL_PLUGIN_SYSTEM.md](./MEL_PLUGIN_SYSTEM.md)` for deeper schema and merging rules; `[PARAMETER_STANDARDS_AND_DOCS.md](./PARAMETER_STANDARDS_AND_DOCS.md)` for parameter documentation standards.
+
 #### Configuration Merging Strategy
 - **Scripts**: Overwrite (user can override plugin commands)
 - **Hooks**: Append (multiple plugins can add hooks)
@@ -336,11 +361,11 @@ mel plugin update mel-assistant
 detect_vcs_and_install() {
     local vcs=""
     
-    if [[ -d ".git" ]]; then
+    if [[ -d "$PROJECT_ROOT/.git" ]]; then
         vcs="git"
-    elif [[ -d ".hg" ]]; then
+    elif [[ -d "$PROJECT_ROOT/.hg" ]]; then
         vcs="hg"
-    elif [[ -d ".svn" ]]; then
+    elif [[ -d "$PROJECT_ROOT/.svn" ]]; then
         vcs="svn"
     else
         echo "✖ No version control system detected"
@@ -348,15 +373,15 @@ detect_vcs_and_install() {
     fi
     
     # Auto-install VCS plugin if not present
-    if [[ ! -d ".mel/plugins/$vcs" ]]; then
+    if [[ ! -d "$MEL_DIR/plugins/$vcs" ]]; then
         echo "📦 Installing $vcs plugin..."
         mel plugin install "$vcs"
     fi
     
     # Add to user config if not present
     local user_config="{}"
-    if [[ -f ".mel/config.json" ]]; then
-        user_config=$(cat ".mel/config.json")
+    if [[ -f "$MEL_DIR/config.json" ]]; then
+        user_config=$(cat "$MEL_DIR/config.json")
     fi
     
     local has_vcs_plugin
@@ -365,7 +390,7 @@ detect_vcs_and_install() {
     if [[ -z "$has_vcs_plugin" ]]; then
         echo "📝 Adding $vcs plugin to configuration..."
         user_config=$(echo "$user_config" | jq ".plugins = (.plugins // []) + [\"$vcs\"]")
-        echo "$user_config" > ".mel/config.json"
+        echo "$user_config" > "$MEL_DIR/config.json"
     fi
     
     echo "$vcs"
@@ -378,18 +403,18 @@ detect_vcs_and_install() {
 ```bash
 # Process template configuration on first run
 process_template_config() {
-    if [[ -f ".mel/config_template.json" ]]; then
+    if [[ -f "$MEL_DIR/config_template.json" ]]; then
         echo "📋 Found template configuration..."
         
         local template_config
-        template_config=$(cat ".mel/config_template.json")
+        template_config=$(cat "$MEL_DIR/config_template.json")
         
         # Install plugins from template
         local template_plugins
         template_plugins=$(echo "$template_config" | jq -r '.plugins[]?' 2>/dev/null || echo "")
         
         for plugin in $template_plugins; do
-            if [[ ! -d ".mel/plugins/$plugin" ]]; then
+            if [[ ! -d "$MEL_DIR/plugins/$plugin" ]]; then
                 echo "📦 Installing plugin from template: $plugin"
                 mel plugin install "$plugin"
             fi
@@ -397,18 +422,20 @@ process_template_config() {
         
         # Merge template config into user config
         local user_config="{}"
-        if [[ -f ".mel/config.json" ]]; then
-            user_config=$(cat ".mel/config.json")
+        if [[ -f "$MEL_DIR/config.json" ]]; then
+            user_config=$(cat "$MEL_DIR/config.json")
         fi
         
         # Merge template (lower priority than existing user config)
         user_config=$(echo "$user_config" | jq '. * input' <(echo "$template_config"))
-        echo "$user_config" > ".mel/config.json"
+        echo "$user_config" > "$MEL_DIR/config.json"
         
         echo "✓ Template configuration applied"
     fi
 }
 ```
+
+See also: `[MEL_FINAL_SPEC.md](./MEL_FINAL_SPEC.md)` (this section), `[MEL_PLUGIN_SYSTEM.md](./MEL_PLUGIN_SYSTEM.md)` for install/merge flow.
 
 #### Example Template Configuration
 ```json
@@ -493,6 +520,7 @@ Examples:
   }
 }
 ```
+See also: `[MEL_PARAMETER_HANDLING.md](./MEL_PARAMETER_HANDLING.md)` and `[PARAMETER_STANDARDS_AND_DOCS.md](./PARAMETER_STANDARDS_AND_DOCS.md)`.
 
 #### Ignoremel Script (`ignoremel.sh`)
 ```bash
@@ -561,6 +589,8 @@ fi
 - **Template-driven** for project-specific documentation
 - **Local server** for immediate viewing
 
+See also: `[PARAMETER_STANDARDS_AND_DOCS.md](./PARAMETER_STANDARDS_AND_DOCS.md)` and `[MEL_DOCS_DEPENDENCY_ANALYSIS.md](./MEL_DOCS_DEPENDENCY_ANALYSIS.md)`.
+
 ### 8. Hook System
 
 #### Hook Types
@@ -590,6 +620,8 @@ python3 .mel/plugins/mel-assistant/bin/analyze_error.py \
     --exit-code "$exit_code" \
     --error "$error_output"
 ```
+
+See also: `[MEL_PLUGIN_SYSTEM.md](./MEL_PLUGIN_SYSTEM.md)` for hook ordering and lifecycle.
 
 ## Implementation Timeline
 
