@@ -22,6 +22,9 @@ MEL_DIR="$PROJECT_ROOT/.mel"
 MEL_PLUGINS_DIR="$MEL_DIR/plugins"
 MEL_VERSION="0.0.1-dev"
 export MEL_SELF="${BASH_SOURCE[0]}"
+# Directory where this mel executable lives (for built-in defaults)
+SCRIPT_DIR="$(cd "$(dirname "$MEL_SELF")" && pwd)"
+DEFAULTS_DIR="$SCRIPT_DIR/plugin_defaults"
 
 # --------------------------
 # Utility helpers
@@ -89,6 +92,14 @@ write_core_plugin() {
       "commands": [
         "$MEL_SELF --internal-template-apply"
       ]
+    },
+    "mode": {
+      "description": "Show or set help mode (basic|advanced)",
+      "mode": "advanced",
+      "usage": "mel mode [basic|advanced]",
+      "commands": [
+        "$MEL_SELF --internal-mode \"$@\""
+      ]
     }
   },
   "hooks": {
@@ -106,6 +117,29 @@ write_git_plugin() {
   cat > "$MEL_PLUGINS_DIR/git/config.json" << 'EOF'
 {
   "scripts": {
+    "status": {
+      "description": "Show repo status",
+      "mode": "basic",
+      "commands": [
+        "git status -sb"
+      ]
+    },
+    "diff": {
+      "description": "Show changes (staged/unstaged)",
+      "mode": "advanced",
+      "commands": [
+        "git diff --staged --stat",
+        "git diff --stat"
+      ]
+    },
+    "save": {
+      "description": "Add and commit changes",
+      "mode": "basic",
+      "commands": [
+        "git add -A",
+        "git commit -m 'mel save' || true"
+      ]
+    },
     "ignoremel": {
       "description": "Add .mel directory to .gitignore",
       "mode": "none",
@@ -198,6 +232,25 @@ write_mel_docs_plugin() {
   "hooks": {},
   "config": {}
 }
+
+# Try to install a plugin by copying from built-in defaults
+copy_defaults_plugin() {
+  local name="$1"
+  local src="$DEFAULTS_DIR/$name"
+  local dst="$MEL_PLUGINS_DIR/$name"
+  if [[ -d "$src" ]]; then
+    mkdir -p "$dst"
+    # Copy preserving structure
+    cp -R "$src/". "$dst/"
+    # Ensure any bin scripts are executable
+    if [[ -d "$dst/bin" ]]; then
+      chmod +x "$dst/bin"/* 2>/dev/null || true
+    fi
+    echo "✓ Installed plugin '$name' from defaults"
+    return 0
+  fi
+  return 1
+}
 EOF
 
   cat > "$MEL_PLUGINS_DIR/mel-docs/bin/docs.sh" << 'EOF'
@@ -233,16 +286,16 @@ plugin_install() {
   fi
   case "$name" in
     core)
-      write_core_plugin
+      copy_defaults_plugin core || write_core_plugin
       ;;
     git)
-      write_git_plugin
+      copy_defaults_plugin git || write_git_plugin
       ;;
     hg)
-      write_hg_plugin
+      copy_defaults_plugin hg || write_hg_plugin
       ;;
     mel-docs)
-      write_mel_docs_plugin
+      copy_defaults_plugin mel-docs || write_mel_docs_plugin
       ;;
     *)
       echo "✖ Unknown plugin: $name"; exit 1
@@ -375,15 +428,13 @@ load_merged_config() {
   for plugin in $(jq -r '.plugins[]?' <<<"$user_config" 2>/dev/null || true); do
     local pconf_path="$MEL_PLUGINS_DIR/$plugin/config.json"
     if [[ -f "$pconf_path" ]]; then
-      local pconf
-      pconf="$(cat "$pconf_path")"
-      merged=$(jq -n --argjson a "$merged" --argjson b "$pconf" '{
-        scripts: ($a.scripts * ($b.scripts // {})),
-        config: ($a.config * ($b.config // {})),
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$pconf_path" '{
+        scripts: ($a.scripts * (($b[0].scripts // {}))),
+        config: ($a.config * (($b[0].config // {}))),
         hooks: {
-          pre_command: (($a.hooks.pre_command // []) + ($b.hooks.pre_command // [])),
-          post_command: (($a.hooks.post_command // []) + ($b.hooks.post_command // [])),
-          on_error: (($a.hooks.on_error // []) + ($b.hooks.on_error // []))
+          pre_command: (($a.hooks.pre_command // []) + (($b[0].hooks.pre_command // []))),
+          post_command: (($a.hooks.post_command // []) + (($b[0].hooks.post_command // []))),
+          on_error: (($a.hooks.on_error // []) + (($b[0].hooks.on_error // [])))
         }
       }')
     fi
@@ -448,15 +499,23 @@ execute_command() {
 print_help() {
   local config_json
   config_json="$(load_merged_config)"
+  # Determine help mode from user config (default basic)
+  local user_mode="basic"
+  if [[ -f "$MEL_DIR/config.json" ]]; then
+    user_mode="$(jq -r '.contributor_mode // "basic"' "$MEL_DIR/config.json" 2>/dev/null || echo basic)"
+  fi
   echo "mel — repo-local plugin runner"
   echo
   echo "Available commands:"
-  jq -r '
+  jq -r --arg m "$user_mode" '
     .scripts
     | to_entries[]
-    | "  \(.key)\t\(
-        (if (.value|type) == "object" then (.value.description // "") else "" end)
-      )"
+    | select(
+        (if (.value|type)=="object" then (.value.mode // "both") else "both" end)
+        as $mm
+        | if $m=="basic" then ($mm=="basic" or $mm=="both") else ($mm != "none") end
+      )
+    | "  \(.key)\t\(if (.value|type) == "object" then (.value.description // "") else "" end)"
   ' <<<"$config_json" | sort
   echo
   echo "Use: mel <command> [args]"
@@ -480,6 +539,29 @@ if [[ "${1:-}" == "--internal-plugin" ]]; then
 fi
 if [[ "${1:-}" == "--internal-template-apply" ]]; then
   process_template_config; exit 0
+fi
+if [[ "${1:-}" == "--internal-mode" ]]; then
+  shift || true
+  arg="${1:-}"
+  if [[ -z "$arg" ]]; then
+    if [[ -f "$MEL_DIR/config.json" ]]; then
+      jq -r '.contributor_mode // "basic"' "$MEL_DIR/config.json"
+    else
+      echo "basic"
+    fi
+    exit 0
+  fi
+  case "$arg" in
+    basic|advanced) :;;
+    *) echo "✖ Mode must be 'basic' or 'advanced'"; exit 1;;
+  esac
+  if [[ -f "$MEL_DIR/config.json" ]]; then
+    jq --arg m "$arg" '.contributor_mode = $m' "$MEL_DIR/config.json" > "$MEL_DIR/config.json.tmp" && mv "$MEL_DIR/config.json.tmp" "$MEL_DIR/config.json"
+  else
+    echo "{\"contributor_mode\": \"$arg\"}" > "$MEL_DIR/config.json"
+  fi
+  echo "✓ Switched to $arg mode"
+  exit 0
 fi
 
 command="${1:-help}"; shift || true

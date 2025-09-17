@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "ignoremel": {
+      "description": "Add .mel directory to .hgignore",
+      "mode": "none",
+      "commands": [
+        ".mel/plugins/hg/bin/ignoremel.sh"
+      ]
+    }
+  },
+  "hooks": {},
+  "config": {}
+}
+

@@ -40,6 +40,7 @@ def build() -> int:
         ("config.html.j2", "config.html"),
         ("explained.html.j2", "explained.html"),
         ("about.html.j2", "about.html"),
+        ("plugins.html.j2", "plugins.html"),
     ]
 
     for src_name, out_name in pages:

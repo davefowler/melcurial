@@ -95,3 +95,23 @@ def test_hg_plugin_writes_hgignore(tmp_path):
     assert (cwd / ".hgignore").exists()
 
 
+def test_mode_switch_and_help_filtering(tmp_path):
+    cwd = tmp_path
+    subprocess.run(["git", "init", "-q"], cwd=cwd, check=True)
+    rc, _ = run([str(MEL), "help"], cwd=cwd)
+    assert rc == 0
+    # Install docs plugin (advanced command) to test filtering
+    rc, _ = run([str(MEL), "plugin", "install", "mel-docs"], cwd=cwd)
+    assert rc == 0
+    # Default is basic: docs should not show
+    rc, out = run([str(MEL), "help"], cwd=cwd)
+    assert rc == 0
+    assert "docs" not in out
+    # Switch to advanced
+    rc, _ = run([str(MEL), "mode", "advanced"], cwd=cwd)
+    assert rc == 0
+    rc, out = run([str(MEL), "help"], cwd=cwd)
+    assert rc == 0
+    assert "docs" in out
+
+
