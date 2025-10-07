@@ -25,6 +25,7 @@ export MEL_SELF="${BASH_SOURCE[0]}"
 # Directory where this mel executable lives (for built-in defaults)
 SCRIPT_DIR="$(cd "$(dirname "$MEL_SELF")" && pwd)"
 DEFAULTS_DIR="$SCRIPT_DIR/plugin_defaults"
+USER_PLUGINS_DIR="$HOME/.mel/plugins"
 
 # --------------------------
 # Utility helpers
@@ -60,177 +61,9 @@ plugin_remove() {
   # Remove from config.plugins
   local cfg
   cfg=$(read_json_file "$MEL_DIR/config.json")
-  cfg=$(jq --arg p "$name" '.["plugins"] = ((.plugins // []) | map(select(. != $p)))' <<<"$cfg")
+  cfg=$(jq --arg p "$name" '. ["plugins"] = ((.plugins // []) | map(select(. != $p)))' <<<"$cfg")
   echo "$cfg" > "$MEL_DIR/config.json"
   echo "✓ Removed plugin '$name'"
-}
-
-write_core_plugin() {
-  ensure_dir "$MEL_PLUGINS_DIR/core/bin"
-  cat > "$MEL_PLUGINS_DIR/core/config.json" << 'EOF'
-{
-  "scripts": {
-    "help": {
-      "description": "Show available commands",
-      "mode": "basic",
-      "commands": [
-        "$MEL_SELF --internal-help"
-      ]
-    },
-    "plugin": {
-      "description": "Plugin management",
-      "mode": "advanced",
-      "usage": "mel plugin <list|install|remove|update> [name]",
-      "commands": [
-        "$MEL_SELF --internal-plugin $@"
-      ]
-    },
-    "template:apply": {
-      "description": "Re-apply .mel/config_template.json after init",
-      "mode": "advanced",
-      "usage": "mel template:apply",
-      "commands": [
-        "$MEL_SELF --internal-template-apply"
-      ]
-    },
-    "mode": {
-      "description": "Show or set help mode (basic|advanced)",
-      "mode": "advanced",
-      "usage": "mel mode [basic|advanced]",
-      "commands": [
-        "$MEL_SELF --internal-mode \"$@\""
-      ]
-    }
-  },
-  "hooks": {
-    "pre_command": [],
-    "post_command": [],
-    "on_error": []
-  },
-  "config": {}
-}
-EOF
-}
-
-write_git_plugin() {
-  ensure_dir "$MEL_PLUGINS_DIR/git/bin"
-  cat > "$MEL_PLUGINS_DIR/git/config.json" << 'EOF'
-{
-  "scripts": {
-    "status": {
-      "description": "Show repo status",
-      "mode": "basic",
-      "commands": [
-        "git status -sb"
-      ]
-    },
-    "diff": {
-      "description": "Show changes (staged/unstaged)",
-      "mode": "advanced",
-      "commands": [
-        "git diff --staged --stat",
-        "git diff --stat"
-      ]
-    },
-    "save": {
-      "description": "Add and commit changes",
-      "mode": "basic",
-      "commands": [
-        "git add -A",
-        "git commit -m 'mel save' || true"
-      ]
-    },
-    "ignoremel": {
-      "description": "Add .mel directory to .gitignore",
-      "mode": "none",
-      "commands": [
-        ".mel/plugins/git/bin/ignoremel.sh"
-      ]
-    }
-  },
-  "hooks": {},
-  "config": {}
-}
-EOF
-
-  cat > "$MEL_PLUGINS_DIR/git/bin/ignoremel.sh" << 'EOF'
-#!/bin/bash
-# Add .mel to .gitignore if needed
-
-# Check if .mel files are showing in git status
-if git status --porcelain | grep -q "^?? .mel/"; then
-  echo "📝 Adding .mel/ to .gitignore..."
-  if [[ -f ".gitignore" ]]; then
-    if ! grep -q "^\.mel/$" .gitignore; then
-      echo ".mel/" >> .gitignore
-      echo "✓ Added .mel/ to .gitignore"
-    else
-      echo "✓ .mel/ already in .gitignore"
-    fi
-  else
-    echo ".mel/" > .gitignore
-    echo "✓ Created .gitignore with .mel/"
-  fi
-else
-  echo "✓ .mel/ already ignored or no untracked files"
-fi
-EOF
-  chmod +x "$MEL_PLUGINS_DIR/git/bin/ignoremel.sh"
-}
-
-write_hg_plugin() {
-  ensure_dir "$MEL_PLUGINS_DIR/hg/bin"
-  cat > "$MEL_PLUGINS_DIR/hg/config.json" << 'EOF'
-{
-  "scripts": {
-    "ignoremel": {
-      "description": "Add .mel directory to .hgignore",
-      "mode": "none",
-      "commands": [
-        ".mel/plugins/hg/bin/ignoremel.sh"
-      ]
-    }
-  },
-  "hooks": {},
-  "config": {}
-}
-EOF
-
-  cat > "$MEL_PLUGINS_DIR/hg/bin/ignoremel.sh" << 'EOF'
-#!/bin/bash
-# Add .mel to .hgignore if needed
-
-if [[ -f ".hgignore" ]]; then
-  if ! grep -q '^\.mel/$' .hgignore; then
-    echo ".mel/" >> .hgignore
-    echo "✓ Added .mel/ to .hgignore"
-  else
-    echo "✓ .mel/ already in .hgignore"
-  fi
-else
-  echo ".mel/" > .hgignore
-  echo "✓ Created .hgignore with .mel/"
-fi
-EOF
-  chmod +x "$MEL_PLUGINS_DIR/hg/bin/ignoremel.sh"
-}
-
-write_mel_docs_plugin() {
-  ensure_dir "$MEL_PLUGINS_DIR/mel-docs/bin"
-  cat > "$MEL_PLUGINS_DIR/mel-docs/config.json" << 'EOF'
-{
-  "scripts": {
-    "docs": {
-      "description": "Start documentation server",
-      "mode": "advanced",
-      "usage": "mel docs [--port 8080] [--host localhost]",
-      "commands": [
-        ".mel/plugins/mel-docs/bin/docs.sh"
-      ]
-    }
-  },
-  "hooks": {},
-  "config": {}
 }
 
 # Try to install a plugin by copying from built-in defaults
@@ -249,34 +82,18 @@ copy_defaults_plugin() {
     echo "✓ Installed plugin '$name' from defaults"
     return 0
   fi
+  # Try user plugins directory
+  local usrc="$USER_PLUGINS_DIR/$name"
+  if [[ -d "$usrc" ]]; then
+    mkdir -p "$dst"
+    cp -R "$usrc/". "$dst/"
+    if [[ -d "$dst/bin" ]]; then
+      chmod +x "$dst/bin"/* 2>/dev/null || true
+    fi
+    echo "✓ Installed plugin '$name' from $USER_PLUGINS_DIR"
+    return 0
+  fi
   return 1
-}
-EOF
-
-  cat > "$MEL_PLUGINS_DIR/mel-docs/bin/docs.sh" << 'EOF'
-#!/bin/bash
-set -euo pipefail
-
-PORT=8080
-HOST=localhost
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --port) PORT="$2"; shift 2;;
-    --host) HOST="$2"; shift 2;;
-    *) shift;;
-  esac
-done
-
-if [[ -d "docs" ]]; then
-  echo "→ Serving docs/ at http://$HOST:$PORT"
-  (cd docs && python3 -m http.server "$PORT" --bind "$HOST")
-else
-  echo "✖ docs/ directory not found in repo."
-  exit 1
-fi
-EOF
-  chmod +x "$MEL_PLUGINS_DIR/mel-docs/bin/docs.sh"
 }
 
 plugin_install() {
@@ -284,23 +101,7 @@ plugin_install() {
   if [[ -z "$name" ]]; then
     echo "Usage: mel plugin install <name>"; exit 1
   fi
-  case "$name" in
-    core)
-      copy_defaults_plugin core || write_core_plugin
-      ;;
-    git)
-      copy_defaults_plugin git || write_git_plugin
-      ;;
-    hg)
-      copy_defaults_plugin hg || write_hg_plugin
-      ;;
-    mel-docs)
-      copy_defaults_plugin mel-docs || write_mel_docs_plugin
-      ;;
-    *)
-      echo "✖ Unknown plugin: $name"; exit 1
-      ;;
-  esac
+  copy_defaults_plugin "$name" || { echo "✖ Plugin '$name' not found in defaults or $USER_PLUGINS_DIR"; exit 1; }
   # Add to config.plugins
   local cfg
   cfg=$(read_json_file "$MEL_DIR/config.json")
@@ -418,17 +219,47 @@ EOF
 # --------------------------
 # Config merging and execution
 # --------------------------
+normalize_plugin_name() {
+  echo "$1" | sed 's/[^A-Za-z0-9]/_/g'
+}
+
+resolve_plugin_path() {
+  local name="$1"
+  local path=""
+  if [[ -d "$MEL_PLUGINS_DIR/$name" ]]; then
+    path="$MEL_PLUGINS_DIR/$name"
+  elif [[ -d "$USER_PLUGINS_DIR/$name" ]]; then
+    path="$USER_PLUGINS_DIR/$name"
+  elif [[ -d "$DEFAULTS_DIR/$name" ]]; then
+    path="$DEFAULTS_DIR/$name"
+  else
+    path=""
+  fi
+  echo "$path"
+}
+
 load_merged_config() {
   local user_config
   user_config=$(read_json_file "$MEL_DIR/config.json")
+  local template_config
+  if [[ -f "$MEL_DIR/config_template.json" ]]; then
+    template_config="$(cat "$MEL_DIR/config_template.json")"
+  else
+    template_config='{}'
+  fi
   local merged
   merged='{"scripts":{},"hooks":{},"config":{}}'
-  # Merge plugin configs in order
+  # Build combined plugin list: template + user (unique)
+  local plugin_list_json
+  plugin_list_json=$(jq -n --argjson t "$template_config" --argjson u "$user_config" '((($t.plugins // []) + ($u.plugins // [])) | unique)')
+  # Merge plugin configs from defaults/user/repo in increasing precedence
   local plugin
-  for plugin in $(jq -r '.plugins[]?' <<<"$user_config" 2>/dev/null || true); do
-    local pconf_path="$MEL_PLUGINS_DIR/$plugin/config.json"
-    if [[ -f "$pconf_path" ]]; then
-      merged=$(jq -n --argjson a "$merged" --slurpfile b "$pconf_path" '{
+  for plugin in $(jq -r '.[]?' <<<"$plugin_list_json" 2>/dev/null || true); do
+    local def_path="$DEFAULTS_DIR/$plugin/config.json"
+    local usr_path="$USER_PLUGINS_DIR/$plugin/config.json"
+    local repo_path="$MEL_PLUGINS_DIR/$plugin/config.json"
+    if [[ -f "$def_path" ]]; then
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$def_path" '{
         scripts: ($a.scripts * (($b[0].scripts // {}))),
         config: ($a.config * (($b[0].config // {}))),
         hooks: {
@@ -438,8 +269,48 @@ load_merged_config() {
         }
       }')
     fi
+    if [[ -f "$usr_path" ]]; then
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$usr_path" '{
+        scripts: ($a.scripts * (($b[0].scripts // {}))),
+        config: ($a.config * (($b[0].config // {}))),
+        hooks: {
+          pre_command: (($a.hooks.pre_command // []) + (($b[0].hooks.pre_command // []))),
+          post_command: (($a.hooks.post_command // []) + (($b[0].hooks.post_command // []))),
+          on_error: (($a.hooks.on_error // []) + (($b[0].hooks.on_error // [])))
+        }
+      }')
+    fi
+    if [[ -f "$repo_path" ]]; then
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$repo_path" '{
+        scripts: ($a.scripts * (($b[0].scripts // {}))),
+        config: ($a.config * (($b[0].config // {}))),
+        hooks: {
+          pre_command: (($a.hooks.pre_command // []) + (($b[0].hooks.pre_command // []))),
+          post_command: (($a.hooks.post_command // []) + (($b[0].hooks.post_command // []))),
+          on_error: (($a.hooks.on_error // []) + (($b[0].hooks.on_error // [])))
+        }
+      }')
+    fi
+    # Export plugin path env var for command expansion
+    local ppath
+    ppath=$(resolve_plugin_path "$plugin")
+    if [[ -n "$ppath" ]]; then
+      local norm
+      norm=$(normalize_plugin_name "$plugin")
+      export "MEL_PLUGIN_PATH_${norm}"="$ppath"
+    fi
   done
   # Merge user config on top (scripts/config overwrite; hooks append)
+  # First merge template, then user
+  merged=$(jq -n --argjson a "$merged" --argjson t "$template_config" '{
+    scripts: ($a.scripts * ($t.scripts // {})),
+    config: ($a.config * ($t.config // {})),
+    hooks: {
+      pre_command: (($a.hooks.pre_command // []) + ($t.hooks.pre_command // [])),
+      post_command: (($a.hooks.post_command // []) + ($t.hooks.post_command // [])),
+      on_error: (($a.hooks.on_error // []) + ($t.hooks.on_error // []))
+    }
+  }')
   merged=$(jq -n --argjson a "$merged" --argjson u "$user_config" '{
     scripts: ($a.scripts * ($u.scripts // {})),
     config: ($a.config * ($u.config // {})),
@@ -480,6 +351,21 @@ execute_command() {
   # Support simple string command or object with commands array
   local entry_type
   entry_type=$(jq -r --arg c "$command" '.scripts[$c] | type' <<<"$config_json" 2>/dev/null || echo "string")
+  # Optional confirmation for object-form commands
+  if [[ "$entry_type" != "string" ]]; then
+    local needs_confirm
+    needs_confirm=$(jq -r --arg c "$command" '(.scripts[$c].confirmation_required // false) | tostring' <<<"$config_json" 2>/dev/null || echo "false")
+    if [[ "$needs_confirm" == "true" ]]; then
+      if [[ "${MEL_YES:-}" != "1" ]]; then
+        printf "⚠️  Are you sure you want to run '%s'? [y/N]: " "$command"
+        read -r ans
+        if [[ "${ans,,}" != "y" ]]; then
+          echo "Cancelled."
+          exit 0
+        fi
+      fi
+    fi
+  fi
   if [[ "$entry_type" == "string" ]]; then
     execute_hooks "$config_json" "pre_command" "$command" "$@"
     eval "$cmd_def"

@@ -18,6 +18,7 @@
     "save": {
       "description": "Add and commit changes",
       "mode": "basic",
+      "confirmation_required": true,
       "commands": [
         "git add -A",
         "git commit -m 'mel save' || true"
