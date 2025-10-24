@@ -16,12 +16,77 @@
       ]
     },
     "save": {
-      "description": "Add and commit changes",
+      "description": "Save and push changes",
       "mode": "basic",
-      "confirmation_required": true,
+      "usage": "mel save \"commit message\"",
+      "safety_checks": ["not_on_main"],
       "commands": [
         "git add -A",
-        "git commit -m 'mel save' || true"
+        "git commit -m '{message}'",
+        "git fetch origin",
+        "git rebase origin/{main}",
+        "git push origin HEAD"
+      ]
+    },
+    "publish": {
+      "description": "Merge to main and push",
+      "mode": "basic",
+      "safety_checks": ["not_on_main", "has_remote"],
+      "confirmation_required": true,
+      "commands": [
+        "git checkout {main}",
+        "git merge --ff-only {branch}",
+        "git push origin {main}",
+        "git checkout {branch}",
+        "git rebase origin/{main}"
+      ]
+    },
+    "reset": {
+      "description": "Reset branch to latest main",
+      "mode": "basic",
+      "safety_checks": ["not_on_main"],
+      "confirmation_required": true,
+      "commands": [
+        "git fetch origin",
+        "git reset --hard origin/{main}",
+        "git push --force origin {branch}"
+      ]
+    },
+    "b": {
+      "description": "Create or switch to branch",
+      "mode": "advanced",
+      "usage": "mel b <branch-name>",
+      "safety_checks": ["clean_working_tree"],
+      "commands": [
+        "git fetch origin",
+        "git checkout -B {0} origin/{main}"
+      ]
+    },
+    "branch": {
+      "description": "Create or switch to branch",
+      "mode": "basic",
+      "usage": "mel branch <branch-name>",
+      "safety_checks": ["clean_working_tree"],
+      "commands": [
+        "git fetch origin",
+        "git checkout -B {0} origin/{main}"
+      ]
+    },
+    "update": {
+      "description": "Update with latest main",
+      "mode": "advanced",
+      "safety_checks": ["not_on_main", "clean_working_tree"],
+      "commands": [
+        "git fetch origin",
+        "git rebase origin/{main}"
+      ]
+    },
+    "clear": {
+      "description": "Stash uncommitted changes",
+      "mode": "advanced",
+      "confirmation_required": true,
+      "commands": [
+        "git stash push -u -m 'mel clear @ {datetime}'"
       ]
     },
     "ignoremel": {
@@ -35,4 +100,3 @@
   "hooks": {},
   "config": {}
 }
-

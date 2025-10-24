@@ -44,6 +44,318 @@ ensure_dir() {
 }
 
 # --------------------------
+# Security: Command Whitelisting
+# --------------------------
+# Safe command prefixes that plugins can use
+SAFE_COMMAND_PREFIXES=(
+  "git "
+  "hg "
+  "svn "
+  "jq "
+  "echo "
+  "printf "
+  "date "
+  "grep "
+  "sed "
+  "awk "
+  "cat "
+  "ls "
+  "pwd "
+  "test "
+  "[ "
+  "[[ "
+  ".mel/plugins/"
+  "\$MEL_PLUGIN_PATH"
+)
+
+validate_command_safety() {
+  local cmd="$1"
+
+  # Skip validation for empty commands
+  [[ -z "$cmd" ]] && return 0
+
+  # Check if command starts with any safe prefix
+  local prefix
+  for prefix in "${SAFE_COMMAND_PREFIXES[@]}"; do
+    if [[ "$cmd" == "$prefix"* ]]; then
+      return 0
+    fi
+  done
+
+  # Command not whitelisted
+  echo "✖ Security: Command blocked for safety" >&2
+  echo "  Command: $cmd" >&2
+  echo "  Allowed: git, hg, svn, jq, basic shell utilities, plugin scripts" >&2
+  echo "  If this command should be allowed, please report this issue." >&2
+  return 1
+}
+
+# --------------------------
+# Security: Repository Trust System
+# --------------------------
+check_repo_trust() {
+  # Skip if .mel/trusted exists and config hasn't changed
+  if [[ -f "$MEL_DIR/trusted" ]]; then
+    # Check if config changed since last trust
+    if [[ -f "$MEL_DIR/config.hash" ]]; then
+      local current_hash
+      current_hash=$(sha256sum "$MEL_DIR/config.json" 2>/dev/null | cut -d' ' -f1 || echo "")
+      local stored_hash
+      stored_hash=$(cat "$MEL_DIR/config.hash" 2>/dev/null || echo "")
+      if [[ "$current_hash" == "$stored_hash" ]]; then
+        return 0  # Trusted and unchanged
+      fi
+      echo "⚠️  Configuration has changed since last trust approval"
+      echo
+    fi
+  fi
+
+  # First time or config changed - show trust prompt
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "⚠️  First-time security check for this repository"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo
+  echo "Location: $(pwd)"
+  echo
+  echo "Mel will execute commands from configuration files:"
+  if [[ -f "$MEL_DIR/config_template.json" ]]; then
+    echo "  • .mel/config_template.json (team config)"
+  fi
+  if [[ -f "$MEL_DIR/config.json" ]]; then
+    echo "  • .mel/config.json (user config)"
+  fi
+  echo
+  echo "Review configuration before proceeding:"
+  echo "  less .mel/config.json"
+  if [[ -f "$MEL_DIR/config_template.json" ]]; then
+    echo "  less .mel/config_template.json"
+  fi
+  echo
+
+  # Prompt user
+  if [[ "${MEL_YES:-}" == "1" ]]; then
+    echo "Auto-trusting (MEL_YES=1)"
+  else
+    printf "Do you trust this repository? [y/N]: "
+    read -r ans
+    # Use tr for bash 3.2 compatibility (macOS)
+    ans_lower=$(echo "$ans" | tr '[:upper:]' '[:lower:]')
+    if [[ "$ans_lower" != "y" ]]; then
+      echo "✗ Repository not trusted. Exiting for safety."
+      echo "  Run again and answer 'y' to proceed."
+      exit 1
+    fi
+  fi
+
+  # Mark as trusted and save config hash
+  touch "$MEL_DIR/trusted"
+  sha256sum "$MEL_DIR/config.json" 2>/dev/null | cut -d' ' -f1 > "$MEL_DIR/config.hash" 2>/dev/null || true
+  echo "✓ Repository marked as trusted"
+  echo
+}
+
+# --------------------------
+# VCS Helper Functions
+# --------------------------
+detect_vcs() {
+  if [[ -d "$PROJECT_ROOT/.git" ]]; then
+    echo "git"
+  elif [[ -d "$PROJECT_ROOT/.hg" ]]; then
+    echo "hg"
+  elif [[ -d "$PROJECT_ROOT/.svn" ]]; then
+    echo "svn"
+  else
+    echo "none"
+  fi
+}
+
+current_branch() {
+  local vcs
+  vcs=$(detect_vcs)
+  case "$vcs" in
+    git)
+      git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"
+      ;;
+    hg)
+      hg branch 2>/dev/null || echo "default"
+      ;;
+    *)
+      echo "unknown"
+      ;;
+  esac
+}
+
+main_branch_name() {
+  local vcs
+  vcs=$(detect_vcs)
+  case "$vcs" in
+    git)
+      # Check config first
+      local config_main
+      config_main=$(jq -r '.config.main // empty' "$MEL_DIR/config.json" 2>/dev/null || echo "")
+      if [[ -n "$config_main" ]]; then
+        echo "$config_main"
+        return
+      fi
+      # Auto-detect: check if main or master exists on remote
+      if git show-ref --verify --quiet refs/remotes/origin/main; then
+        echo "main"
+      elif git show-ref --verify --quiet refs/remotes/origin/master; then
+        echo "master"
+      else
+        echo "main"  # default
+      fi
+      ;;
+    hg)
+      echo "default"
+      ;;
+    *)
+      echo "main"
+      ;;
+  esac
+}
+
+has_remote() {
+  local vcs
+  vcs=$(detect_vcs)
+  case "$vcs" in
+    git)
+      git remote 2>/dev/null | grep -q "origin"
+      ;;
+    hg)
+      hg paths 2>/dev/null | grep -q "default"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_on_main() {
+  local current
+  local main
+  current=$(current_branch)
+  main=$(main_branch_name)
+  [[ "$current" == "$main" ]]
+}
+
+has_uncommitted_changes() {
+  local vcs
+  vcs=$(detect_vcs)
+  case "$vcs" in
+    git)
+      ! git diff-index --quiet HEAD -- 2>/dev/null
+      ;;
+    hg)
+      [[ -n "$(hg status 2>/dev/null)" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# --------------------------
+# Safety Checks
+# --------------------------
+run_safety_checks() {
+  local checks="$1"
+
+  # Parse safety_checks array from JSON
+  local check
+  while IFS= read -r check; do
+    [[ -z "$check" ]] && continue
+
+    case "$check" in
+      not_on_main)
+        if is_on_main; then
+          echo "✖ Safety check failed: Cannot run this command on main branch" >&2
+          echo "  Current branch: $(current_branch)" >&2
+          echo "  Switch to a feature branch first: mel b <branch-name>" >&2
+          return 1
+        fi
+        ;;
+      clean_working_tree)
+        if has_uncommitted_changes; then
+          echo "✖ Safety check failed: You have uncommitted changes" >&2
+          echo "  Commit your changes first: mel save \"message\"" >&2
+          echo "  Or stash them: mel clear" >&2
+          return 1
+        fi
+        ;;
+      has_remote)
+        if ! has_remote; then
+          echo "✖ Safety check failed: No remote repository configured" >&2
+          echo "  Add a remote: git remote add origin <url>" >&2
+          return 1
+        fi
+        ;;
+      *)
+        echo "⚠️  Unknown safety check: $check" >&2
+        ;;
+    esac
+  done <<< "$checks"
+
+  return 0
+}
+
+# --------------------------
+# Variable Substitution
+# --------------------------
+substitute_variables() {
+  local template="$1"
+  shift
+  local args=("$@")
+
+  # Get VCS context
+  local branch
+  local main
+  local vcs
+  branch=$(current_branch)
+  main=$(main_branch_name)
+  vcs=$(detect_vcs)
+
+  # Get message from first argument if provided
+  local message="${args[0]:-}"
+
+  # Get author
+  local author=""
+  case "$vcs" in
+    git)
+      author=$(git config user.name 2>/dev/null || echo "Unknown")
+      ;;
+    hg)
+      author=$(hg config ui.username 2>/dev/null | cut -d'<' -f1 | sed 's/ *$//' || echo "Unknown")
+      ;;
+  esac
+
+  # Get datetime
+  local datetime
+  datetime=$(date "+%Y-%m-%d %H:%M")
+
+  # Get repo root
+  local repo_root="$PROJECT_ROOT"
+
+  # Substitute variables
+  # Use parameter expansion which works in bash 3.2
+  template="${template//\{message\}/$message}"
+  template="${template//\{branch\}/$branch}"
+  template="${template//\{main\}/$main}"
+  template="${template//\{author\}/$author}"
+  template="${template//\{datetime\}/$datetime}"
+  template="${template//\{repo_root\}/$repo_root}"
+
+  # Also support argument positional substitution
+  local i=0
+  for arg in "${args[@]}"; do
+    template="${template//\{$i\}/$arg}"
+    ((i++)) || true
+  done
+
+  echo "$template"
+}
+
+# --------------------------
 # Plugin management (built-in)
 # --------------------------
 plugin_list() {
@@ -328,19 +640,31 @@ execute_hooks() {
   local hook_type="$1"; shift || true
   local hooks
   hooks=$(jq -r --arg t "$hook_type" '.hooks[$t][]?' <<<"$config_json" 2>/dev/null || true)
-  local hook
-  for hook in $hooks; do
+
+  # Use read to properly handle hooks with spaces
+  while IFS= read -r hook; do
+    [[ -z "$hook" ]] && continue
+
+    # Validate hook command for security
+    if ! validate_command_safety "$hook"; then
+      echo "⚠️  Hook blocked by security check: $hook" >&2
+      continue
+    fi
+
+    # Execute hook
     if [[ -f "$hook" ]]; then
       bash "$hook" "$@"
     else
       eval "$hook"
     fi
-  done
+  done <<< "$hooks"
 }
 
 execute_command() {
   local config_json="$1"; shift
   local command="$1"; shift || true
+  local args=("$@")
+
   local cmd_def
   cmd_def=$(jq -r --arg c "$command" '.scripts[$c] // empty' <<<"$config_json")
   if [[ -z "$cmd_def" ]]; then
@@ -348,38 +672,78 @@ execute_command() {
     echo "Run 'mel help' for available commands"
     exit 1
   fi
+
   # Support simple string command or object with commands array
   local entry_type
   entry_type=$(jq -r --arg c "$command" '.scripts[$c] | type' <<<"$config_json" 2>/dev/null || echo "string")
-  # Optional confirmation for object-form commands
+
+  # Run safety checks if this is an object with safety_checks array
   if [[ "$entry_type" != "string" ]]; then
+    local safety_checks
+    safety_checks=$(jq -r --arg c "$command" '.scripts[$c].safety_checks[]?' <<<"$config_json" 2>/dev/null || true)
+    if [[ -n "$safety_checks" ]]; then
+      if ! run_safety_checks "$safety_checks"; then
+        exit 1
+      fi
+    fi
+
+    # Optional confirmation for object-form commands
     local needs_confirm
     needs_confirm=$(jq -r --arg c "$command" '(.scripts[$c].confirmation_required // false) | tostring' <<<"$config_json" 2>/dev/null || echo "false")
     if [[ "$needs_confirm" == "true" ]]; then
       if [[ "${MEL_YES:-}" != "1" ]]; then
         printf "⚠️  Are you sure you want to run '%s'? [y/N]: " "$command"
         read -r ans
-        if [[ "${ans,,}" != "y" ]]; then
+        # Use tr for bash 3.2 compatibility
+        ans_lower=$(echo "$ans" | tr '[:upper:]' '[:lower:]')
+        if [[ "$ans_lower" != "y" ]]; then
           echo "Cancelled."
           exit 0
         fi
       fi
     fi
   fi
+
+  # Handle simple string commands
   if [[ "$entry_type" == "string" ]]; then
-    execute_hooks "$config_json" "pre_command" "$command" "$@"
-    eval "$cmd_def"
-    execute_hooks "$config_json" "post_command" "$command" "$@"
+    local resolved_cmd
+    resolved_cmd=$(substitute_variables "$cmd_def" "${args[@]}")
+
+    # Validate command for security
+    if ! validate_command_safety "$resolved_cmd"; then
+      exit 1
+    fi
+
+    execute_hooks "$config_json" "pre_command" "$command" "${args[@]}"
+    eval "$resolved_cmd"
+    execute_hooks "$config_json" "post_command" "$command" "${args[@]}"
     return
   fi
+
+  # Handle object with commands array
   local commands
   commands=$(jq -r --arg c "$command" '.scripts[$c].commands[]?' <<<"$config_json" 2>/dev/null || true)
-  execute_hooks "$config_json" "pre_command" "$command" "$@"
+
+  execute_hooks "$config_json" "pre_command" "$command" "${args[@]}"
+
   while IFS= read -r c; do
     [[ -z "$c" ]] && continue
-    eval "$c"
+
+    # Substitute variables in command
+    local resolved_cmd
+    resolved_cmd=$(substitute_variables "$c" "${args[@]}")
+
+    # Validate command for security
+    if ! validate_command_safety "$resolved_cmd"; then
+      echo "✖ Command execution aborted for security" >&2
+      exit 1
+    fi
+
+    # Execute command
+    eval "$resolved_cmd"
   done <<< "$commands"
-  execute_hooks "$config_json" "post_command" "$command" "$@"
+
+  execute_hooks "$config_json" "post_command" "$command" "${args[@]}"
 }
 
 print_help() {
@@ -454,6 +818,16 @@ command="${1:-help}"; shift || true
 
 # Initialize if needed
 init_mel
+
+# Check repository trust (except for help and version commands)
+case "$command" in
+  help|-h|--help|version|-v|--version)
+    # Skip trust check for informational commands
+    ;;
+  *)
+    check_repo_trust
+    ;;
+esac
 
 case "$command" in
   help)
