@@ -5,7 +5,18 @@ set -euo pipefail
 
 # Requires jq
 if ! command -v jq >/dev/null 2>&1; then
-  echo "✖ 'jq' is required. Please install jq and retry." 1>&2
+  echo "✖ 'jq' is required but not found" >&2
+  echo "" >&2
+  echo "  Install jq with:" >&2
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "    brew install jq" >&2
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "    sudo apt-get install jq  # Debian/Ubuntu" >&2
+    echo "    sudo dnf install jq      # Fedora" >&2
+    echo "    sudo yum install jq      # CentOS/RHEL" >&2
+  fi
+  echo "" >&2
+  echo "  Or visit: https://stedolan.github.io/jq/download/" >&2
   exit 1
 fi
 
@@ -145,7 +156,13 @@ check_repo_trust() {
     ans_lower=$(echo "$ans" | tr '[:upper:]' '[:lower:]')
     if [[ "$ans_lower" != "y" ]]; then
       echo "✗ Repository not trusted. Exiting for safety."
-      echo "  Run again and answer 'y' to proceed."
+      echo ""
+      echo "  To trust this repository:"
+      echo "    1. Review the configuration files listed above"
+      echo "    2. Run mel again and answer 'y' when prompted"
+      echo ""
+      echo "  To skip trust prompts (not recommended):"
+      echo "    MEL_YES=1 mel <command>"
       exit 1
     fi
   fi
@@ -397,6 +414,7 @@ plugin_remove() {
 
   if [[ ! -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
     echo "✖ Plugin '$name' is not installed"
+    echo "  List installed: mel plugin list"
     exit 1
   fi
 
@@ -458,6 +476,8 @@ plugin_update() {
 
   if [[ ! -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
     echo "✖ Plugin '$name' is not installed"
+    echo "  Install it with: mel plugin install $name"
+    echo "  List available: mel plugin list"
     exit 1
   fi
 
