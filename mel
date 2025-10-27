@@ -19,13 +19,16 @@ else
 fi
 
 MEL_DIR="$PROJECT_ROOT/.mel"
-MEL_PLUGINS_DIR="$MEL_DIR/plugins"
 MEL_VERSION="0.0.1-dev"
 export MEL_SELF="${BASH_SOURCE[0]}"
+
 # Directory where this mel executable lives (for built-in defaults)
 SCRIPT_DIR="$(cd "$(dirname "$MEL_SELF")" && pwd)"
-DEFAULTS_DIR="$SCRIPT_DIR/plugin_defaults"
-USER_PLUGINS_DIR="$HOME/.mel/plugins"
+BUILTIN_PLUGINS_DIR="$SCRIPT_DIR/plugin_defaults"
+
+# Global plugins directory (2-tier system: global + builtin)
+# Use XDG_DATA_HOME if set, otherwise ~/.local/share
+GLOBAL_PLUGINS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mel/plugins"
 
 # --------------------------
 # Utility helpers
@@ -356,78 +359,124 @@ substitute_variables() {
 }
 
 # --------------------------
-# Plugin management (built-in)
+# Plugin management (2-tier: global + builtin)
 # --------------------------
 plugin_list() {
-  if [[ -d "$MEL_PLUGINS_DIR" ]]; then
-    ls -1 "$MEL_PLUGINS_DIR" | sort || true
+  echo "Installed plugins:"
+  if [[ -d "$GLOBAL_PLUGINS_DIR" ]]; then
+    for plugin in "$GLOBAL_PLUGINS_DIR"/*; do
+      if [[ -d "$plugin" ]]; then
+        local name=$(basename "$plugin")
+        echo "  $name (global)"
+      fi
+    done
+  fi
+
+  echo ""
+  echo "Available built-in plugins:"
+  if [[ -d "$BUILTIN_PLUGINS_DIR" ]]; then
+    for plugin in "$BUILTIN_PLUGINS_DIR"/*; do
+      if [[ -d "$plugin" ]]; then
+        local name=$(basename "$plugin")
+        local installed=""
+        if [[ -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
+          installed=" (already installed)"
+        fi
+        echo "  $name$installed"
+      fi
+    done
   fi
 }
 
 plugin_remove() {
   local name="$1"
   if [[ -z "$name" ]]; then
-    echo "Usage: mel plugin remove <name>"; exit 1
+    echo "Usage: mel plugin remove <name>"
+    exit 1
   fi
-  rm -rf "$MEL_PLUGINS_DIR/$name" || true
-  # Remove from config.plugins
-  local cfg
-  cfg=$(read_json_file "$MEL_DIR/config.json")
-  cfg=$(jq --arg p "$name" '. ["plugins"] = ((.plugins // []) | map(select(. != $p)))' <<<"$cfg")
-  echo "$cfg" > "$MEL_DIR/config.json"
-  echo "✓ Removed plugin '$name'"
+
+  if [[ ! -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
+    echo "✖ Plugin '$name' is not installed"
+    exit 1
+  fi
+
+  rm -rf "$GLOBAL_PLUGINS_DIR/$name"
+  echo "✓ Removed plugin '$name' from global plugins"
 }
 
-# Try to install a plugin by copying from built-in defaults
-copy_defaults_plugin() {
-  local name="$1"
-  local src="$DEFAULTS_DIR/$name"
-  local dst="$MEL_PLUGINS_DIR/$name"
-  if [[ -d "$src" ]]; then
-    mkdir -p "$dst"
-    # Copy preserving structure
-    cp -R "$src/". "$dst/"
-    # Ensure any bin scripts are executable
-    if [[ -d "$dst/bin" ]]; then
-      chmod +x "$dst/bin"/* 2>/dev/null || true
-    fi
-    echo "✓ Installed plugin '$name' from defaults"
-    return 0
-  fi
-  # Try user plugins directory
-  local usrc="$USER_PLUGINS_DIR/$name"
-  if [[ -d "$usrc" ]]; then
-    mkdir -p "$dst"
-    cp -R "$usrc/". "$dst/"
-    if [[ -d "$dst/bin" ]]; then
-      chmod +x "$dst/bin"/* 2>/dev/null || true
-    fi
-    echo "✓ Installed plugin '$name' from $USER_PLUGINS_DIR"
-    return 0
-  fi
-  return 1
-}
-
+# Install plugin globally from built-in defaults
 plugin_install() {
   local name="$1"
   if [[ -z "$name" ]]; then
-    echo "Usage: mel plugin install <name>"; exit 1
+    echo "Usage: mel plugin install <name>"
+    exit 1
   fi
-  copy_defaults_plugin "$name" || { echo "✖ Plugin '$name' not found in defaults or $USER_PLUGINS_DIR"; exit 1; }
-  # Add to config.plugins
-  local cfg
-  cfg=$(read_json_file "$MEL_DIR/config.json")
-  cfg=$(jq --arg p "$name" '.plugins = ((.plugins // []) + [$p] | unique)' <<<"$cfg")
-  echo "$cfg" > "$MEL_DIR/config.json"
-  echo "✓ Installed plugin '$name'"
+
+  local src="$BUILTIN_PLUGINS_DIR/$name"
+  if [[ ! -d "$src" ]]; then
+    echo "✖ Plugin '$name' not found in built-in plugins"
+    echo "  Available: $(ls -1 "$BUILTIN_PLUGINS_DIR" 2>/dev/null | tr '\n' ' ')"
+    exit 1
+  fi
+
+  local dst="$GLOBAL_PLUGINS_DIR/$name"
+  if [[ -d "$dst" ]]; then
+    echo "⚠️  Plugin '$name' is already installed"
+    echo "  Use 'mel plugin update $name' to update it"
+    return 0
+  fi
+
+  # Create global plugins directory if needed
+  ensure_dir "$GLOBAL_PLUGINS_DIR"
+
+  # Copy plugin
+  cp -R "$src" "$dst"
+
+  # Ensure bin scripts are executable
+  if [[ -d "$dst/bin" ]]; then
+    chmod +x "$dst/bin"/* 2>/dev/null || true
+  fi
+
+  echo "✓ Installed plugin '$name' to global plugins"
+  echo "  Location: $dst"
 }
 
 plugin_update() {
-  if [[ -n "${1:-}" ]]; then
-    echo "✓ (stub) Updated plugin '$1'"
-  else
-    echo "✓ (stub) Updated all plugins"
+  local name="${1:-}"
+
+  if [[ -z "$name" ]]; then
+    # Update all installed plugins
+    echo "Updating all installed plugins..."
+    for plugin in "$GLOBAL_PLUGINS_DIR"/*; do
+      if [[ -d "$plugin" ]]; then
+        local pname=$(basename "$plugin")
+        plugin_update "$pname"
+      fi
+    done
+    return 0
   fi
+
+  if [[ ! -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
+    echo "✖ Plugin '$name' is not installed"
+    exit 1
+  fi
+
+  local src="$BUILTIN_PLUGINS_DIR/$name"
+  if [[ ! -d "$src" ]]; then
+    echo "⚠️  Plugin '$name' is not a built-in plugin, cannot update"
+    return 0
+  fi
+
+  # Backup and update
+  local dst="$GLOBAL_PLUGINS_DIR/$name"
+  rm -rf "$dst"
+  cp -R "$src" "$dst"
+
+  if [[ -d "$dst/bin" ]]; then
+    chmod +x "$dst/bin"/* 2>/dev/null || true
+  fi
+
+  echo "✓ Updated plugin '$name'"
 }
 
 run_builtin_plugin_cmd() {
@@ -437,7 +486,11 @@ run_builtin_plugin_cmd() {
     install) plugin_install "${1:-}" ;;
     remove) plugin_remove "${1:-}" ;;
     update) plugin_update "${1:-}" ;;
-    *) echo "Unknown plugin command: $subcmd"; exit 1 ;;
+    *)
+      echo "✖ Unknown plugin command: $subcmd"
+      echo "  Usage: mel plugin <list|install|remove|update> [name]"
+      exit 1
+      ;;
   esac
 }
 
@@ -450,7 +503,7 @@ process_template_config() {
     # Install plugins from template
     local plugin
     for plugin in $(jq -r '(.plugins // [])[]?' "$MEL_DIR/config_template.json" 2>/dev/null || echo ""); do
-      if [[ ! -d "$MEL_PLUGINS_DIR/$plugin" ]]; then
+      if [[ ! -d "$GLOBAL_PLUGINS_DIR/$plugin" ]]; then
         echo "📦 Installing plugin from template: $plugin"
         plugin_install "$plugin"
       fi
@@ -490,18 +543,20 @@ detect_vcs_and_install() {
   else
     echo "✖ No version control system detected"; return 0
   fi
-  if [[ ! -d "$MEL_PLUGINS_DIR/$vcs" ]]; then
+  if [[ ! -d "$GLOBAL_PLUGINS_DIR/$vcs" ]]; then
     echo "📦 Installing $vcs plugin..."
     plugin_install "$vcs"
   fi
   # Perform VCS-specific one-time setup
+  local plugin_path
+  plugin_path=$(resolve_plugin_path "$vcs")
   if [[ "$vcs" == "git" ]]; then
-    if [[ -x "$MEL_PLUGINS_DIR/git/bin/ignoremel.sh" ]]; then
-      (cd "$PROJECT_ROOT" && "$MEL_PLUGINS_DIR/git/bin/ignoremel.sh" || true)
+    if [[ -x "$plugin_path/bin/ignoremel.sh" ]]; then
+      (cd "$PROJECT_ROOT" && "$plugin_path/bin/ignoremel.sh" || true)
     fi
   elif [[ "$vcs" == "hg" ]]; then
-    if [[ -x "$MEL_PLUGINS_DIR/hg/bin/ignoremel.sh" ]]; then
-      (cd "$PROJECT_ROOT" && "$MEL_PLUGINS_DIR/hg/bin/ignoremel.sh" || true)
+    if [[ -x "$plugin_path/bin/ignoremel.sh" ]]; then
+      (cd "$PROJECT_ROOT" && "$plugin_path/bin/ignoremel.sh" || true)
     fi
   fi
 }
@@ -512,14 +567,14 @@ detect_vcs_and_install() {
 init_mel() {
   if [[ ! -d "$MEL_DIR" ]]; then
     echo "🚀 Initializing Mel..."
-    ensure_dir "$MEL_PLUGINS_DIR"
+    ensure_dir "$MEL_DIR"
     # Initial config
     cat > "$MEL_DIR/config.json" << 'EOF'
 {
   "plugins": ["core"]
 }
 EOF
-    # Install core plugin
+    # Install core plugin globally (if not already installed)
     plugin_install core
     # Process template and detect VCS
     process_template_config
@@ -537,17 +592,14 @@ normalize_plugin_name() {
 
 resolve_plugin_path() {
   local name="$1"
-  local path=""
-  if [[ -d "$MEL_PLUGINS_DIR/$name" ]]; then
-    path="$MEL_PLUGINS_DIR/$name"
-  elif [[ -d "$USER_PLUGINS_DIR/$name" ]]; then
-    path="$USER_PLUGINS_DIR/$name"
-  elif [[ -d "$DEFAULTS_DIR/$name" ]]; then
-    path="$DEFAULTS_DIR/$name"
+  # 2-tier system: Check global first, then builtin
+  if [[ -d "$GLOBAL_PLUGINS_DIR/$name" ]]; then
+    echo "$GLOBAL_PLUGINS_DIR/$name"
+  elif [[ -d "$BUILTIN_PLUGINS_DIR/$name" ]]; then
+    echo "$BUILTIN_PLUGINS_DIR/$name"
   else
-    path=""
+    echo ""
   fi
-  echo "$path"
 }
 
 load_merged_config() {
@@ -564,14 +616,16 @@ load_merged_config() {
   # Build combined plugin list: template + user (unique)
   local plugin_list_json
   plugin_list_json=$(jq -n --argjson t "$template_config" --argjson u "$user_config" '((($t.plugins // []) + ($u.plugins // [])) | unique)')
-  # Merge plugin configs from defaults/user/repo in increasing precedence
+  # Merge plugin configs (2-tier: builtin, then global)
   local plugin
   for plugin in $(jq -r '.[]?' <<<"$plugin_list_json" 2>/dev/null || true); do
-    local def_path="$DEFAULTS_DIR/$plugin/config.json"
-    local usr_path="$USER_PLUGINS_DIR/$plugin/config.json"
-    local repo_path="$MEL_PLUGINS_DIR/$plugin/config.json"
-    if [[ -f "$def_path" ]]; then
-      merged=$(jq -n --argjson a "$merged" --slurpfile b "$def_path" '{
+    # Try builtin first, then global (global overrides builtin)
+    local builtin_path="$BUILTIN_PLUGINS_DIR/$plugin/config.json"
+    local global_path="$GLOBAL_PLUGINS_DIR/$plugin/config.json"
+
+    # Merge builtin plugin config
+    if [[ -f "$builtin_path" ]]; then
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$builtin_path" '{
         scripts: ($a.scripts * (($b[0].scripts // {}))),
         config: ($a.config * (($b[0].config // {}))),
         hooks: {
@@ -581,8 +635,10 @@ load_merged_config() {
         }
       }')
     fi
-    if [[ -f "$usr_path" ]]; then
-      merged=$(jq -n --argjson a "$merged" --slurpfile b "$usr_path" '{
+
+    # Merge global plugin config (overrides builtin)
+    if [[ -f "$global_path" ]]; then
+      merged=$(jq -n --argjson a "$merged" --slurpfile b "$global_path" '{
         scripts: ($a.scripts * (($b[0].scripts // {}))),
         config: ($a.config * (($b[0].config // {}))),
         hooks: {
@@ -592,17 +648,7 @@ load_merged_config() {
         }
       }')
     fi
-    if [[ -f "$repo_path" ]]; then
-      merged=$(jq -n --argjson a "$merged" --slurpfile b "$repo_path" '{
-        scripts: ($a.scripts * (($b[0].scripts // {}))),
-        config: ($a.config * (($b[0].config // {}))),
-        hooks: {
-          pre_command: (($a.hooks.pre_command // []) + (($b[0].hooks.pre_command // []))),
-          post_command: (($a.hooks.post_command // []) + (($b[0].hooks.post_command // []))),
-          on_error: (($a.hooks.on_error // []) + (($b[0].hooks.on_error // [])))
-        }
-      }')
-    fi
+
     # Export plugin path env var for command expansion
     local ppath
     ppath=$(resolve_plugin_path "$plugin")
