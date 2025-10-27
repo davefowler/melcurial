@@ -78,7 +78,7 @@ else
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  warn "python3 not found in PATH. $CLI_NAME uses '#!/usr/bin/env python3'."
+  :
 fi
 
 # PATH hint

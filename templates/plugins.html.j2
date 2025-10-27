@@ -1,0 +1,77 @@
+{% extends "base.html.j2" %}
+{% block title %}Plugins{% endblock %}
+{% block content %}
+<h1>Plugins</h1>
+
+<p>Mel is fully plugin-driven. Each repo has a local <code>.mel/</code> directory containing installed plugins and configuration.</p>
+
+<h2>Structure</h2>
+<pre><code>
+.mel/
+  config.json                 # Repo-local user config (merged on top)
+  plugins/
+    &lt;plugin-name&gt;/
+      config.json             # Plugin config (scripts, hooks, config)
+      bin/                    # Executable scripts (optional)
+</code></pre>
+
+<h2>Installing</h2>
+<pre><code>mel plugin install git
+mel plugin install hg
+mel plugin install mel-docs
+</code></pre>
+
+<p>Mel first looks for built-in defaults under <code>plugin_defaults/&lt;name&gt;</code> (shipped with the CLI). If not found, Mel falls back to generating minimal scaffolding. You can also ship plugins in your repo by committing <code>.mel/plugins/&lt;name&gt;</code>.</p>
+
+<h2>Plugin Config Schema</h2>
+<pre><code>{
+  "scripts": {
+    "command_name": {
+      "description": "Short help text",
+      "help_text": "Long-form documentation (optional)",
+      "usage": "mel command [args]",
+      "mode": "basic|advanced|both|none",
+      "commands": [ "bash or shell command", "another" ],
+      "parameters": { "name": { "type": "string|integer|boolean", "required": true } }
+    },
+    "simple": "echo short form is a string command"
+  },
+  "hooks": {
+    "pre_command": [".mel/plugins/foo/hooks/pre_command"],
+    "post_command": [],
+    "on_error": []
+  },
+  "config": { "setting_name": { "type": "string", "required": false } }
+}
+</code></pre>
+
+<h2>Modes and Help Filtering</h2>
+<p>Commands can be hidden or shown based on <code>mode</code>:</p>
+<ul>
+  <li><code>basic</code>: Shows in basic only</li>
+  <li><code>advanced</code>: Shows in advanced only</li>
+  <li><code>both</code>: Shows in both</li>
+  <li><code>none</code>: Hidden from help</li>
+  <li>String commands (short form) default to <code>both</code></li>
+  <li>Set mode: <code>mel mode basic</code> or <code>mel mode advanced</code></li>
+  <li>Docs plugin is advanced; it appears only in advanced mode</li>
+  </ul>
+
+<h2>Defaults and Templates</h2>
+<p>On first run, if the repo contains <code>.mel/config_template.json</code>, Mel installs any plugins listed and merges <code>scripts</code>, <code>hooks</code>, and <code>config</code> into <code>.mel/config.json</code> (user overrides win). You can re-apply a template later:</p>
+<pre><code>mel template:apply</code></pre>
+
+<h2>Authoring Tips</h2>
+<ul>
+  <li>Prefer small shell commands in <code>commands</code>. For complex flows, call scripts in <code>bin/</code>.</li>
+  <li>Keep parameters documented in the plugin config; they’re used for help.</li>
+  <li>Ship your plugin via repo (<code>.mel/plugins/&lt;name&gt;</code>) or as part of CLI defaults (<code>plugin_defaults/&lt;name&gt;</code>).</li>
+</ul>
+
+<h2>See Also</h2>
+<ul>
+  <li><a href="config.html">Configuration</a></li>
+  <li><a href="explained.html">How it works</a></li>
+  <li><a href="about.html">About</a></li>
+</ul>
+{% endblock %}
