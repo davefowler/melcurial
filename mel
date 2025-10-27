@@ -792,6 +792,198 @@ execute_command() {
   execute_hooks "$config_json" "post_command" "$command" "${args[@]}"
 }
 
+explain_command() {
+  local cmd_name="$1"
+
+  if [[ -z "$cmd_name" ]]; then
+    echo "Usage: mel explain <command>"
+    echo ""
+    echo "Shows detailed information about what a command does,"
+    echo "where it's defined, and what will be executed."
+    exit 1
+  fi
+
+  local config_json
+  config_json="$(load_merged_config)"
+
+  # Check if command exists
+  local cmd_def
+  cmd_def=$(jq -r --arg c "$cmd_name" '.scripts[$c] // empty' <<<"$config_json")
+  if [[ -z "$cmd_def" ]]; then
+    echo "✖ Unknown command: $cmd_name"
+    echo ""
+    echo "Run 'mel help' for available commands"
+    exit 1
+  fi
+
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "Command: $cmd_name"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # Determine where this command is defined
+  echo "📍 Source:"
+  local found_in=""
+
+  # Check each config source in reverse merge order to find where it's defined
+  local plugin_list_json
+  local template_config user_config
+  template_config=$(read_json_file "$MEL_DIR/config_template.json")
+  user_config=$(read_json_file "$MEL_DIR/config.json")
+  plugin_list_json=$(jq -n --argjson t "$template_config" --argjson u "$user_config" '((($t.plugins // []) + ($u.plugins // [])) | unique)')
+
+  # Check user config
+  if [[ -f "$MEL_DIR/config.json" ]]; then
+    local user_has_cmd
+    user_has_cmd=$(jq -r --arg c "$cmd_name" '.scripts[$c] // empty' "$MEL_DIR/config.json" 2>/dev/null)
+    if [[ -n "$user_has_cmd" ]]; then
+      echo "  • User config: $MEL_DIR/config.json"
+      found_in="user"
+    fi
+  fi
+
+  # Check template
+  if [[ -f "$MEL_DIR/config_template.json" ]]; then
+    local template_has_cmd
+    template_has_cmd=$(jq -r --arg c "$cmd_name" '.scripts[$c] // empty' "$MEL_DIR/config_template.json" 2>/dev/null)
+    if [[ -n "$template_has_cmd" && -z "$found_in" ]]; then
+      echo "  • Template: $MEL_DIR/config_template.json"
+      found_in="template"
+    fi
+  fi
+
+  # Check plugins (global and builtin)
+  for plugin in $(jq -r '.[]?' <<<"$plugin_list_json" 2>/dev/null || true); do
+    local global_path="$GLOBAL_PLUGINS_DIR/$plugin/config.json"
+    local builtin_path="$BUILTIN_PLUGINS_DIR/$plugin/config.json"
+
+    if [[ -f "$global_path" ]]; then
+      local has_cmd
+      has_cmd=$(jq -r --arg c "$cmd_name" '.scripts[$c] // empty' "$global_path" 2>/dev/null)
+      if [[ -n "$has_cmd" && -z "$found_in" ]]; then
+        echo "  • Global plugin: $plugin ($global_path)"
+        found_in="global-$plugin"
+      fi
+    fi
+
+    if [[ -f "$builtin_path" ]]; then
+      local has_cmd
+      has_cmd=$(jq -r --arg c "$cmd_name" '.scripts[$c] // empty' "$builtin_path" 2>/dev/null)
+      if [[ -n "$has_cmd" && -z "$found_in" ]]; then
+        echo "  • Built-in plugin: $plugin ($builtin_path)"
+        found_in="builtin-$plugin"
+      fi
+    fi
+  done
+  echo ""
+
+  # Show description
+  local desc
+  desc=$(jq -r --arg c "$cmd_name" '.scripts[$c].description // empty' <<<"$config_json" 2>/dev/null)
+  if [[ -n "$desc" ]]; then
+    echo "📝 Description:"
+    echo "  $desc"
+    echo ""
+  fi
+
+  # Show usage
+  local usage
+  usage=$(jq -r --arg c "$cmd_name" '.scripts[$c].usage // empty' <<<"$config_json" 2>/dev/null)
+  if [[ -n "$usage" ]]; then
+    echo "💡 Usage:"
+    echo "  $usage"
+    echo ""
+  fi
+
+  # Show safety checks
+  local safety_checks
+  safety_checks=$(jq -r --arg c "$cmd_name" '.scripts[$c].safety_checks[]? // empty' <<<"$config_json" 2>/dev/null)
+  if [[ -n "$safety_checks" ]]; then
+    echo "🛡️  Safety checks:"
+    while IFS= read -r check; do
+      [[ -z "$check" ]] && continue
+      case "$check" in
+        not_on_main) echo "  ✓ Cannot run on main branch" ;;
+        clean_working_tree) echo "  ✓ Requires clean working tree (no uncommitted changes)" ;;
+        has_remote) echo "  ✓ Requires remote repository configured" ;;
+        *) echo "  ✓ $check" ;;
+      esac
+    done <<< "$safety_checks"
+    echo ""
+  fi
+
+  # Show if confirmation required
+  local confirm_req
+  confirm_req=$(jq -r --arg c "$cmd_name" '.scripts[$c].confirmation_required // false' <<<"$config_json" 2>/dev/null)
+  if [[ "$confirm_req" == "true" ]]; then
+    echo "⚠️  Confirmation required: You will be prompted before execution"
+    echo ""
+  fi
+
+  # Show commands that will be executed
+  echo "🔧 Commands to be executed:"
+  local entry_type
+  entry_type=$(jq -r --arg c "$cmd_name" '.scripts[$c] | type' <<<"$config_json")
+
+  if [[ "$entry_type" == "string" ]]; then
+    echo "  $cmd_def"
+  else
+    local commands
+    commands=$(jq -r --arg c "$cmd_name" '.scripts[$c].commands[]?' <<<"$config_json" 2>/dev/null || true)
+    local cmd_num=1
+    while IFS= read -r c; do
+      [[ -z "$c" ]] && continue
+      echo "  $cmd_num. $c"
+      ((cmd_num++)) || true
+    done <<< "$commands"
+  fi
+  echo ""
+
+  # Show variable substitution info if variables are used
+  if echo "$cmd_def$commands" | grep -q '{'; then
+    echo "📌 Template variables used:"
+    echo "$cmd_def$commands" | grep -o '{[^}]*}' | sort -u | while IFS= read -r var; do
+      case "$var" in
+        '{message}') echo "  $var → First argument (commit message, etc.)" ;;
+        '{branch}') echo "  $var → Current branch name" ;;
+        '{main}') echo "  $var → Main branch name (auto-detected)" ;;
+        '{author}') echo "  $var → VCS user name" ;;
+        '{datetime}') echo "  $var → Current timestamp (YYYY-MM-DD HH:MM)" ;;
+        '{repo_root}') echo "  $var → Repository root path" ;;
+        '{0}'|'{1}'|'{2}'|'{3}'|'{4}'|'{5}'|'{6}'|'{7}'|'{8}'|'{9}') echo "  $var → Positional argument" ;;
+        *) echo "  $var → Variable" ;;
+      esac
+    done
+    echo ""
+  fi
+
+  # Show hooks if any
+  local pre_hooks post_hooks
+  pre_hooks=$(jq -r '.hooks.pre_command[]?' <<<"$config_json" 2>/dev/null || true)
+  post_hooks=$(jq -r '.hooks.post_command[]?' <<<"$config_json" 2>/dev/null || true)
+
+  if [[ -n "$pre_hooks" || -n "$post_hooks" ]]; then
+    echo "🪝 Hooks:"
+    if [[ -n "$pre_hooks" ]]; then
+      echo "  Pre-command hooks:"
+      while IFS= read -r hook; do
+        [[ -z "$hook" ]] && continue
+        echo "    - $hook"
+      done <<< "$pre_hooks"
+    fi
+    if [[ -n "$post_hooks" ]]; then
+      echo "  Post-command hooks:"
+      while IFS= read -r hook; do
+        [[ -z "$hook" ]] && continue
+        echo "    - $hook"
+      done <<< "$post_hooks"
+    fi
+    echo ""
+  fi
+
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
 print_help() {
   local config_json
   config_json="$(load_merged_config)"
@@ -815,6 +1007,7 @@ print_help() {
   ' <<<"$config_json" | sort
   echo
   echo "Use: mel <command> [args]"
+  echo "Use: mel explain <command> for detailed information"
 }
 
 # --------------------------
@@ -867,7 +1060,7 @@ init_mel
 
 # Check repository trust (except for help and version commands)
 case "$command" in
-  help|-h|--help|version|-v|--version)
+  help|-h|--help|version|-v|--version|explain)
     # Skip trust check for informational commands
     ;;
   *)
@@ -878,6 +1071,9 @@ esac
 case "$command" in
   help)
     print_help
+    ;;
+  explain)
+    explain_command "$@"
     ;;
   plugin)
     run_builtin_plugin_cmd "$@"
