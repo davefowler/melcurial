@@ -132,7 +132,7 @@ def format_message_template(template: str, context: dict) -> str:
       "mel command example1",
       "mel command example2"
     ],
-    "category": "basic|advanced|troubleshooting",
+    "mode": "basic|advanced|none|both",
     "troubleshooting": "Common issues and solutions",
     "see_also": ["related_command1", "related_command2"],
     "commands": [
@@ -159,6 +159,16 @@ def format_message_template(template: str, context: dict) -> str:
       "message": "user-provided message",
       "author": "git config user.name",
       "datetime": "current timestamp"
+    },
+    "parameters": {
+      "param_name": {
+        "type": "string|integer|boolean",
+        "required": true,
+        "description": "Parameter description",
+        "position": 1,
+        "env_var": "PARAM_NAME",
+        "default": "default_value"
+      }
     }
   }
 }
@@ -179,7 +189,7 @@ def format_message_template(template: str, context: dict) -> str:
       "mel save \"Fixed typo in README\"",
       "mel save \"Updated documentation\""
     ],
-    "category": "basic",
+    "mode": "basic",
     "commands": [
       "git add -A",
       "git commit -m \"{message}\"",
@@ -198,7 +208,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Merges your branch to main using fast-forward merge, then updates your branch",
     "usage": "mel publish",
     "examples": ["mel publish"],
-    "category": "basic",
+    "mode": "basic",
     "commands": [
       "git checkout {main}",
       "git merge --ff-only {branch}",
@@ -216,7 +226,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Shows what changes you've made since saving",
     "usage": "mel status",
     "examples": ["mel status"],
-    "category": "basic",
+    "mode": "basic",
     "commands": [
       "git status -sb",
       "git log -1 --pretty=%h %s (%cr)"
@@ -230,7 +240,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Ditch your changes and start over from main",
     "usage": "mel reset",
     "examples": ["mel reset"],
-    "category": "basic",
+    "mode": "basic",
     "commands": [
       "git fetch origin",
       "git reset --hard origin/{main}",
@@ -254,7 +264,7 @@ def format_message_template(template: str, context: dict) -> str:
       "mel b feature/new-login",
       "mel b bugfix/typo"
     ],
-    "category": "advanced",
+    "mode": "advanced",
     "commands": [
       "git fetch origin",
       "git checkout -B {branch_name} origin/{main}"
@@ -264,14 +274,40 @@ def format_message_template(template: str, context: dict) -> str:
   },
   
   "update": {
-    "description": "Update with latest main",
-    "help_text": "Rebase on the latest from main",
+    "description": "Update with latest main (default strategy)",
+    "help_text": "Updates your branch with latest main using the default strategy",
     "usage": "mel update",
     "examples": ["mel update"],
-    "category": "advanced",
+    "mode": "advanced",
+    "commands": [
+      "mel update:merge"
+    ],
+    "safety_checks": ["not_on_main", "clean_working_tree"],
+    "default_command": true
+  },
+  
+  "update:rebase": {
+    "description": "Update with latest main via rebase",
+    "help_text": "Rebase your branch on the latest from main",
+    "usage": "mel update:rebase",
+    "examples": ["mel update:rebase"],
+    "mode": "advanced",
     "commands": [
       "git fetch origin",
       "git rebase origin/{main}"
+    ],
+    "safety_checks": ["not_on_main", "clean_working_tree"]
+  },
+  
+  "update:merge": {
+    "description": "Update with latest main via merge",
+    "help_text": "Merge latest main into your branch",
+    "usage": "mel update:merge",
+    "examples": ["mel update:merge"],
+    "mode": "advanced",
+    "commands": [
+      "git fetch origin",
+      "git merge origin/{main}"
     ],
     "safety_checks": ["not_on_main", "clean_working_tree"]
   },
@@ -281,7 +317,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Show staged/unstaged diff stats",
     "usage": "mel diff",
     "examples": ["mel diff"],
-    "category": "advanced",
+    "mode": "advanced",
     "commands": [
       "git diff --staged --stat",
       "git diff --stat"
@@ -294,7 +330,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Open remote repo page in your browser",
     "usage": "mel open",
     "examples": ["mel open"],
-    "category": "advanced",
+    "mode": "advanced",
     "commands": [
       "open {repo_url}"
     ],
@@ -306,7 +342,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Go to the page to make a new PR",
     "usage": "mel pr",
     "examples": ["mel pr"],
-    "category": "advanced",
+    "mode": "advanced",
     "commands": [
       "open {pr_url}"
     ],
@@ -318,7 +354,7 @@ def format_message_template(template: str, context: dict) -> str:
     "help_text": "Stash your uncommitted changes (worktree + untracked)",
     "usage": "mel clear",
     "examples": ["mel clear"],
-    "category": "advanced",
+    "mode": "advanced",
     "commands": [
       "git stash push -u -m \"mel clear @ {datetime}\""
     ],
@@ -368,6 +404,213 @@ def format_message_template(template: str, context: dict) -> str:
     "confirmation_required": true
   }
 }
+```
+
+## Auto-Generated Documentation System
+
+### Documentation Architecture
+
+The new system will auto-generate most documentation content from configuration files, with only intro/closing text being manually maintained.
+
+#### File Organization
+```
+configs/
+├── git_defaults.json          # Git command definitions
+├── hg_defaults.json           # Mercurial command definitions  
+├── config_schema.json         # Configuration options schema
+└── docs_templates.json        # Documentation templates and static content
+```
+
+#### Configuration Schema (`config_schema.json`)
+```json
+{
+  "config_options": {
+    "main": {
+      "type": "string",
+      "default": "auto-detected",
+      "description": "Name of your default branch",
+      "help_text": "Auto-detected as 'main' or 'master' if absent",
+      "category": "basic"
+    },
+    "contributor_mode": {
+      "type": "string",
+      "default": "basic",
+      "options": ["basic", "advanced"],
+      "description": "Controls help text visibility",
+      "help_text": "basic: Shows only basic commands for non-engineers, advanced: Shows both basic and advanced commands",
+      "category": "basic"
+    },
+    "require_add_confirmation": {
+      "type": "boolean",
+      "default": true,
+      "description": "Show file list before adding to commit",
+      "help_text": "If true (default), show a list of files and require confirmation before adding them to a commit",
+      "category": "basic"
+    },
+    "require_publish_confirmation": {
+      "type": "boolean", 
+      "default": true,
+      "description": "Confirm before publishing",
+      "help_text": "If false, skip the confirmation prompt in 'mel publish'",
+      "category": "basic"
+    },
+    "open_pr_on_sync": {
+      "type": "boolean",
+      "default": false,
+      "description": "Open PR URL after sync",
+      "help_text": "When true, after 'mel sync' mel opens a prefilled PR URL (GitHub)",
+      "category": "advanced"
+    },
+    "merge_message": {
+      "type": "string",
+      "default": null,
+      "description": "Template for merge commit messages",
+      "help_text": "Template for merge commit messages when using merge strategy. Supports {branch}, {main}, {author}, {datetime}",
+      "category": "advanced"
+    },
+    "allow_package_scripts": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allow package manager scripts",
+      "help_text": "If true, 'mel <name>' falls back to your package manager when a script is not defined locally",
+      "category": "advanced"
+    }
+  }
+}
+```
+
+#### Documentation Templates (`docs_templates.json`)
+```json
+{
+  "static_content": {
+    "home_intro": "Many non-engineers have contributions for codebases (static sites, docs, design tweaks, image swaps, etc.) and the learning curve on git is steep.\n\nmel is a simplification of a common git flow that makes versioned collaboration more approachable for those non-engineer contributors.\n\n**Mission: enable non-engineers to contribute!**",
+    
+    "home_how_it_works": "mel is just a wrapper around git. It keeps each person working in their own branch, and automatically pulling in changes from the main branch. If at any point someone gets stuck you can revert to directly using git.",
+    
+    "explained_intro": "No good abstraction should be without a full explanation of what has been abstracted. If you're an engineer or AI trying to figure your way out of some confusing scenario, hopefully this information can help:\n\nThis documentation explains what each mel command is doing under the hood, and you can get the same help by simply running `mel explain <command>`.",
+    
+    "config_intro": "mel reads `.mel/config.json` at the repository root. If it's missing, mel will create the `.mel` folder as needed. You can also provide a template (see Template) of defaults for anyone using the repo."
+  },
+  
+  "generated_sections": {
+    "home_usage": "auto_generate_from_commands",
+    "explained_commands": "auto_generate_from_commands", 
+    "config_options": "auto_generate_from_schema"
+  }
+}
+```
+
+### Mode-Based Help System
+
+#### Mode Field Values
+- **`"basic"`**: Show only in basic mode help
+- **`"advanced"`**: Show only in advanced mode help  
+- **`"both"`**: Show in both basic and advanced mode help
+- **`"none"`**: Never show in help (but command still works)
+
+#### Help Command Behavior
+```bash
+mel help                    # Show commands for current mode (basic/advanced)
+mel help --all             # Show all commands regardless of mode
+mel help --mode basic      # Show only basic commands
+mel help --mode advanced   # Show only advanced commands
+```
+
+#### Default Command System
+Instead of `update_strategy` boolean, we have:
+- `mel update` → runs `mel update:merge` by default
+- `mel update:rebase` → explicit rebase strategy
+- `mel update:merge` → explicit merge strategy
+
+Users can override the default by creating a script:
+```json
+{
+  "scripts": {
+    "update": "mel update:rebase"  // Override default to use rebase
+  }
+}
+```
+
+### Documentation Generation Pipeline
+
+#### CLI Help Generator (`generators/help_generator.py`)
+```python
+def generate_cli_help(config: dict, mode: str = None, show_all: bool = False) -> str:
+    """Generate CLI help text from configuration"""
+    
+def filter_commands_by_mode(commands: dict, mode: str, show_all: bool = False) -> dict:
+    """Filter commands based on mode and show_all flag"""
+    
+def format_command_help(command_name: str, command_config: dict) -> str:
+    """Format help text for individual command"""
+```
+
+#### HTML Documentation Generator (`generators/docs_generator.py`)
+```python
+def generate_home_page(config: dict, templates: dict) -> str:
+    """Generate home page HTML from config and templates"""
+    
+def generate_explained_page(config: dict, templates: dict) -> str:
+    """Generate explained page HTML from config and templates"""
+    
+def generate_config_page(config: dict, schema: dict, templates: dict) -> str:
+    """Generate config page HTML from schema and templates"""
+    
+def generate_command_documentation(command_name: str, command_config: dict) -> str:
+    """Generate detailed command documentation"""
+```
+
+#### Documentation Build Commands
+```bash
+# Generate all documentation
+mel docs:generate --output docs/
+
+# Generate specific pages
+mel docs:generate --page home --output docs/index.html
+mel docs:generate --page explained --output docs/explained.html  
+mel docs:generate --page config --output docs/config.html
+
+# Generate CLI help
+mel help:generate --mode basic > help_basic.txt
+mel help:generate --mode advanced > help_advanced.txt
+mel help:generate --all > help_all.txt
+```
+
+### Configuration Management
+
+#### Configuration Merging
+```python
+def load_merged_config(vcs_type: str) -> dict:
+    """Load and merge configuration layers"""
+    
+    # 1. Load VCS defaults (git_defaults.json, hg_defaults.json)
+    vcs_defaults = load_vcs_defaults(vcs_type)
+    
+    # 2. Load user config (.mel/config.json)  
+    user_config = load_user_config()
+    
+    # 3. Load package scripts (package.json, pyproject.toml)
+    package_scripts = load_package_scripts()
+    
+    # 4. Merge with proper precedence
+    merged = merge_configs(vcs_defaults, user_config, package_scripts)
+    
+    # 5. Validate against schema
+    validate_config(merged)
+    
+    return merged
+```
+
+#### Configuration Validation
+```python
+def validate_config(config: dict, schema: dict) -> bool:
+    """Validate configuration against schema"""
+    
+def validate_command_config(command_name: str, command_config: dict) -> bool:
+    """Validate individual command configuration"""
+    
+def suggest_config_fixes(config: dict, schema: dict) -> list:
+    """Suggest fixes for invalid configuration"""
 ```
 
 ## Implementation Phases
@@ -422,13 +665,14 @@ utils/shell_runner.sh
 - [ ] `clear` - stash functionality
 
 ### Phase 3: Documentation System (Week 5)
-**Goal**: Automated documentation generation
+**Goal**: Automated documentation generation with mode-based filtering
 
 #### Deliverables:
-- [ ] CLI help generator
+- [ ] CLI help generator with mode filtering
 - [ ] HTML documentation generator
-- [ ] Markdown documentation generator
-- [ ] Man page generator
+- [ ] Configuration schema system
+- [ ] Documentation templates
+- [ ] Mode-based command filtering
 - [ ] Documentation build pipeline
 
 #### Files to Create:
@@ -437,7 +681,16 @@ generators/help_generator.py
 generators/docs_generator.py
 generators/man_generator.py
 utils/template_engine.py
+configs/config_schema.json
+configs/docs_templates.json
 ```
+
+#### New Features:
+- [ ] Mode-based help filtering (`basic`, `advanced`, `both`, `none`)
+- [ ] `mel help --all` to show all commands
+- [ ] Auto-generated home page usage sections
+- [ ] Auto-generated explained page command details
+- [ ] Auto-generated config page from schema
 
 ### Phase 4: Multi-VCS Support (Week 6)
 **Goal**: Support for Mercurial and other VCS
@@ -463,6 +716,7 @@ configs/svn_defaults.json (future)
 - [ ] Configuration templates
 - [ ] Migration tools from current Mel
 - [ ] Performance optimizations
+- [ ] Default command system (`mel update` → `mel update:merge`)
 
 #### Features to Implement:
 - [ ] Pre/post command hooks
@@ -470,6 +724,8 @@ configs/svn_defaults.json (future)
 - [ ] Configuration templates
 - [ ] Migration utilities
 - [ ] Performance profiling
+- [ ] Default command routing system
+- [ ] Command override system for user configs
 
 ### Phase 6: Testing and Polish (Week 9-10)
 **Goal**: Comprehensive testing and user experience polish

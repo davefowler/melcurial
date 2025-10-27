@@ -1,0 +1,42 @@
+{
+  "scripts": {
+    "help": {
+      "description": "Show available commands",
+      "mode": "basic",
+      "commands": [
+        "$MEL_SELF --internal-help"
+      ]
+    },
+    "plugin": {
+      "description": "Plugin management",
+      "mode": "advanced",
+      "usage": "mel plugin <list|install|remove|update> [name]",
+      "commands": [
+        "$MEL_SELF --internal-plugin $@"
+      ]
+    },
+    "template:apply": {
+      "description": "Re-apply .mel/config_template.json after init",
+      "mode": "advanced",
+      "usage": "mel template:apply",
+      "commands": [
+        "$MEL_SELF --internal-template-apply"
+      ]
+    },
+    "mode": {
+      "description": "Show or set help mode (basic|advanced)",
+      "mode": "advanced",
+      "usage": "mel mode [basic|advanced]",
+      "commands": [
+        "$MEL_SELF --internal-mode \"$@\""
+      ]
+    }
+  },
+  "hooks": {
+    "pre_command": [],
+    "post_command": [],
+    "on_error": []
+  },
+  "config": {}
+}
+

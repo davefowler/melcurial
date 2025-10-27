@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "docs": {
+      "description": "Start documentation server",
+      "mode": "advanced",
+      "usage": "mel docs [--port 8080] [--host localhost]",
+      "commands": [
+        ".mel/plugins/mel-docs/bin/docs.sh"
+      ]
+    }
+  },
+  "hooks": {},
+  "config": {}
+}
+
