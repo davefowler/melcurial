@@ -6,6 +6,16 @@ Many non-engineers have contributions for codebases (static sites, docs, design 
 
 **Mission: enable non-engineers to contribute!**
 
+## Who is this for?
+
+`mel` is designed for anyone who needs to work with code but finds git overwhelming:
+
+- **Data Analysts** working with dbt models with version control
+- **Content editors** and communicators updating docs and static sites
+- **Product Managers** contributing to codebases
+- **Designers** making UI/content tweaks
+- **Engineers** who want a streamlined, fast workflow
+
 ## Install
 
 **macOS/Linux (no sudo).** On macOS installs to `/opt/homebrew/bin` or `/usr/local/bin` when writable; otherwise to `~/.local/bin`.
